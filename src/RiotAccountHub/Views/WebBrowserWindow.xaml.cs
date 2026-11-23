@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using RiotAccountHub.Core;
+using RiotAccountHub.Core.Web;
 using RiotAccountHub.Helpers;
 
 namespace RiotAccountHub.Views;
@@ -44,6 +45,13 @@ public partial class WebBrowserWindow : Window
             var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder: null, userDataFolder: dataDir);
             await Browser.EnsureCoreWebView2Async(env);
 
+            // 擋廣告：拒絕廣告網域的請求（包含網頁裡的 iframe），並藏起空出來的廣告欄位
+            _environment = env;
+            Browser.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All,
+                CoreWebView2WebResourceRequestSourceKinds.All);
+            Browser.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
+            await Browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(AdBlocker.HideAdsScript);
+
             Browser.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
             Browser.CoreWebView2.NavigationCompleted += (_, _) => LoadingText.Visibility = Visibility.Collapsed;
             Browser.CoreWebView2.Navigate(_startUri.ToString());
@@ -58,6 +66,17 @@ public partial class WebBrowserWindow : Window
             AppLog.Error("內建瀏覽器開啟失敗", ex);
             FallbackToExternal("內建瀏覽器開啟失敗，改用預設瀏覽器開啟。\n\n詳細資訊：" + ex.Message);
         }
+    }
+
+    private CoreWebView2Environment? _environment;
+    private int _blockedCount;
+
+    /// <summary>廣告網址直接回應「已封鎖」，不讓它下載</summary>
+    private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        if (_environment is null || !AdBlocker.IsBlocked(e.Request.Uri)) return;
+        e.Response = _environment.CreateWebResourceResponse(null, 403, "Blocked", "Content-Type: text/plain");
+        _blockedCount++;
     }
 
     /// <summary>網站要開新視窗：同一個網站就在這裡開，其他網站用預設瀏覽器</summary>
@@ -115,6 +134,7 @@ public partial class WebBrowserWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        if (_blockedCount > 0) AppLog.Info($"內建瀏覽器已擋掉 {_blockedCount} 個廣告請求");
         Browser.Dispose();
         base.OnClosed(e);
     }
