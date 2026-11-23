@@ -517,6 +517,9 @@ public sealed partial class MainViewModel : ObservableObject
             card.Model.AppliedSettingsUtc = DateTime.UtcNow;
             card.Model.PendingLaunchNotice = $"已套用遊戲設定「{change.ProfileName}」，這次進遊戲就會生效";
         }
+
+        // 已經自動重開遊戲了 → 設定已經生效，下次啟動不用再提示
+        if (change.Relaunched) card.Model.PendingLaunchNotice = null;
         SaveAccounts();
         card.Refresh();
     }

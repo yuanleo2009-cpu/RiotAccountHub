@@ -131,27 +131,30 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
         {
             message += "\n・注意：這個設定檔就是從這個帳號匯出的。";
         }
-        if (_sync.IsValorantRunning())
+        var inGame = _sync.IsValorantRunning();
+        if (inGame)
         {
-            message += "\n\nVALORANT 正在執行，套用前會先關閉遊戲（不然遊戲會把舊設定寫回去）。Riot Client 會保持開著。";
+            message += "\n\nVALORANT 正在執行：會先關閉遊戲（不然遊戲會把舊設定寫回去），套用完成後自動重新開啟遊戲。";
         }
 
-        if (!_dialogs.Confirm("套用遊戲設定", message, _sync.IsValorantRunning() ? "關閉遊戲並套用" : "套用", "取消", warning: true))
+        if (!_dialogs.Confirm("套用遊戲設定", message, inGame ? "關閉遊戲、套用並重開" : "套用", "取消", warning: true))
         {
             return;
         }
 
-        BusyText = $"正在把「{item.Name}」套用到 {who.RiotId}…";
+        BusyText = inGame ? $"正在關閉遊戲並套用「{item.Name}」…" : $"正在把「{item.Name}」套用到 {who.RiotId}…";
         IsBusy = true;
-        await _sync.ApplyAsync(item.Model, who.Puuid!);
+        await WithRelaunchAsync(inGame, () => _sync.ApplyAsync(item.Model, who.Puuid!));
+        var relaunched = inGame && await RelaunchAsync();
         IsBusy = false;
-        Changed?.Invoke(new SettingsChange(who, item.Name, Restored: false));
+        Changed?.Invoke(new SettingsChange(who, item.Name, Restored: false, Relaunched: relaunched));
 
         UpdateBackupInfo();
-        _dialogs.ShowInfo("套用成功",
-            $"已把「{item.Name}」套用到「{who.RiotId}」。\n\n" +
-            "請重新開啟 VALORANT（在主畫面按這個帳號的「啟動」），新的設定才會生效。\n" +
-            "啟動時會再顯示一次「設定已套用」的提示。");
+        _dialogs.ShowInfo("套用成功", relaunched
+            ? $"已把「{item.Name}」套用到「{who.RiotId}」，VALORANT 正在重新開啟，進到遊戲就是新的設定了。"
+            : $"已把「{item.Name}」套用到「{who.RiotId}」。\n\n" +
+              "請重新開啟 VALORANT（在主畫面按這個帳號的「啟動」），新的設定才會生效。\n" +
+              "啟動時會再顯示一次「設定已套用」的提示。");
     });
 
     /// <summary>刪除設定檔</summary>
@@ -180,21 +183,53 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
         }
 
         var message = $"要把「{who.RiotId}」的設定改回 {TimeText.FormatWhen(backup.CreatedUtc)} 的備份嗎？\n（{backup.Name}）";
-        if (_sync.IsValorantRunning()) message += "\n\nVALORANT 正在執行，還原前會先關閉遊戲。";
-        if (!_dialogs.Confirm("還原遊戲設定", message, "還原", "取消", warning: true)) return;
+        var inGame = _sync.IsValorantRunning();
+        if (inGame) message += "\n\nVALORANT 正在執行：會先關閉遊戲，還原完成後自動重新開啟。";
+        if (!_dialogs.Confirm("還原遊戲設定", message, inGame ? "關閉遊戲、還原並重開" : "還原", "取消", warning: true)) return;
 
         BusyText = "正在還原設定…";
         IsBusy = true;
-        await _sync.RestoreAsync(who.Puuid!);
+        await WithRelaunchAsync(inGame, () => _sync.RestoreAsync(who.Puuid!));
+        var relaunched = inGame && await RelaunchAsync();
         IsBusy = false;
-        Changed?.Invoke(new SettingsChange(who, null, Restored: true));
+        Changed?.Invoke(new SettingsChange(who, null, Restored: true, Relaunched: relaunched));
 
-        _dialogs.ShowInfo("還原完成", $"「{who.RiotId}」的設定已經改回原本的樣子。\n請重新開啟 VALORANT，設定才會生效。");
+        _dialogs.ShowInfo("還原完成", relaunched
+            ? $"「{who.RiotId}」的設定已經改回原本的樣子，VALORANT 正在重新開啟。"
+            : $"「{who.RiotId}」的設定已經改回原本的樣子。\n請重新開啟 VALORANT，設定才會生效。");
     });
 
     // ==================================================================
     // 小工具
     // ==================================================================
+
+    /// <summary>
+    /// 執行套用 / 還原。如果原本在遊戲中、而且失敗了，也要把遊戲開回來
+    /// （因為遊戲是我們關掉的），再把錯誤交給外層顯示。
+    /// </summary>
+    private async Task WithRelaunchAsync(bool inGame, Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch when (inGame)
+        {
+            if (!_sync.IsValorantRunning())
+            {
+                BusyText = "發生錯誤，正在把遊戲開回來…";
+                await _sync.RelaunchGameAsync();
+            }
+            throw;
+        }
+    }
+
+    /// <summary>套用完成後重新開啟遊戲</summary>
+    private async Task<bool> RelaunchAsync()
+    {
+        BusyText = "設定已套用，正在重新開啟 VALORANT…";
+        return await _sync.RelaunchGameAsync();
+    }
 
     /// <summary>確認 Riot Client 有開而且有登入；沒有的話顯示中文提示</summary>
     private async Task<bool> EnsureLoggedInAsync()
@@ -247,7 +282,7 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
 }
 
 /// <summary>遊戲設定變更的通知：哪個帳號、套用了哪個設定檔（還原時是 null）</summary>
-public sealed record SettingsChange(RiotIdInfo Account, string? ProfileName, bool Restored);
+public sealed record SettingsChange(RiotIdInfo Account, string? ProfileName, bool Restored, bool Relaunched = false);
 
 /// <summary>清單上的一個設定檔</summary>
 public sealed class SettingsProfileItem

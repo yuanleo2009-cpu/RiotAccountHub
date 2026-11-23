@@ -25,6 +25,36 @@ public sealed class SettingsSync
     public bool IsValorantRunning() => _riot.IsValorantRunning();
 
     /// <summary>
+    /// 套用 / 還原後重新開啟 VALORANT（套用前遊戲是開著的才會用到）。
+    /// Riot Client 一直開著、帳號也登入著，所以直接請它「開始遊戲」就好。
+    /// 剛關掉遊戲時 Riot Client 可能還沒反應過來，被拒絕的話每 2 秒再試，最多約 20 秒。
+    /// 回傳是否成功送出。
+    /// </summary>
+    public async Task<bool> RelaunchGameAsync()
+    {
+        for (var attempt = 1; attempt <= 10; attempt++)
+        {
+            if (_riot.IsValorantRunning()) return true;
+
+            var result = await _api.LaunchValorantAsync();
+            if (result == LaunchRequestResult.Accepted)
+            {
+                AppLog.Info("套用設定後已重新開啟 VALORANT");
+                return true;
+            }
+            if (result == LaunchRequestResult.NoResponse)
+            {
+                // 可能已經送到，只是沒回應；不要重送，避免開兩次
+                AppLog.Info("套用設定後重新開啟 VALORANT：Riot Client 沒有回應，不再重送");
+                return false;
+            }
+            await Task.Delay(2000);
+        }
+        AppLog.Info("套用設定後重新開啟 VALORANT：Riot Client 一直拒絕，請手動開始遊戲");
+        return false;
+    }
+
+    /// <summary>
     /// 目前登入的是哪個帳號。沒開 Riot Client 或沒登入時，丟出容易懂的中文訊息。
     /// </summary>
     public async Task<RiotIdInfo> GetCurrentAccountAsync()
