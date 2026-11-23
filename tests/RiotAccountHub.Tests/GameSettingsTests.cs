@@ -136,20 +136,22 @@ public sealed class GameSettingsTests : IDisposable
     }
 
     [Fact]
-    public void 主帳號設定_固定編號_每次覆蓋同一份()
+    public void 帳號設定_每個帳號一份_每次覆蓋同一份()
     {
         var store = new SettingsProfileStore(_temp.Root);
-        Assert.Null(store.MainProfile());
+        const string accountA = "aaaa1111";
+        Assert.Null(store.AccountProfile(accountA));
 
-        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.MainProfileId, Name = "主帳號設定（A）", SettingsJson = SourceJson });
-        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.MainProfileId, Name = "主帳號設定（B）", SettingsJson = SourceJson });
-        store.SaveProfile(new SettingsProfile { Name = "一般設定檔", SettingsJson = SourceJson });
+        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.AccountProfileId(accountA), Name = "A 第一次", SettingsJson = SourceJson });
+        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.AccountProfileId(accountA), Name = "A 第二次", SettingsJson = SourceJson });
+        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.AccountProfileId("bbbb2222"), Name = "B", SettingsJson = SourceJson });
 
-        Assert.Equal("主帳號設定（B）", store.MainProfile()!.Name);
+        Assert.Equal("A 第二次", store.AccountProfile(accountA)!.Name);
+        Assert.Equal("B", store.AccountProfile("bbbb2222")!.Name);
         Assert.Equal(2, store.ListProfiles().Count);
 
-        store.DeleteProfile(SettingsProfileStore.MainProfileId);
-        Assert.Null(store.MainProfile());
+        store.DeleteProfile(SettingsProfileStore.AccountProfileId(accountA));
+        Assert.Null(store.AccountProfile(accountA));
     }
 
     [Fact]

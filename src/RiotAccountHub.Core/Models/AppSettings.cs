@@ -22,4 +22,10 @@ public sealed class AppSettings
     /// 沒設定就是 null。
     /// </summary>
     public string? MainAccountId { get; set; }
+
+    /// <summary>
+    /// 「複製設定」複製的是哪個帳號（Account.Id）的設定。
+    /// 其他帳號的卡片上會出現「套用設定」。關掉程式再打開還會保留。
+    /// </summary>
+    public string? CopiedSettingsAccountId { get; set; }
 }

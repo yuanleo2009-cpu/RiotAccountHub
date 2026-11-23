@@ -24,12 +24,6 @@ public interface IDialogService
     /// <summary>帳號資料填寫視窗；按儲存回傳 true</summary>
     bool ShowAccountEditor(AccountEditViewModel viewModel);
 
-    /// <summary>請使用者輸入一段文字（例如設定檔名稱）；取消回傳 null</summary>
-    string? PromptText(string title, string message, string defaultText);
-
-    /// <summary>打開「同步遊戲設定」視窗</summary>
-    void ShowSettingsSync(SettingsSyncViewModel viewModel);
-
     /// <summary>請使用者選擇 RiotClientServices.exe；取消回傳 null</summary>
     string? PickRiotClientExe(string? initialDirectory);
 }

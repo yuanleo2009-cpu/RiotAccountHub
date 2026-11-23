@@ -81,6 +81,20 @@ public sealed partial class AccountCardViewModel : ObservableObject
     /// <summary>卡片下方按鈕的文字</summary>
     public string MainToggleText => IsMain ? "取消主帳號" : "設為主帳號";
 
+    // ---------------- 複製 / 套用 / 還原 ----------------
+
+    /// <summary>目前「已複製」的就是這個帳號的設定</summary>
+    [ObservableProperty]
+    private bool _isCopySource;
+
+    /// <summary>有複製別的帳號的設定 → 這張卡片顯示「套用設定」</summary>
+    [ObservableProperty]
+    private bool _canApplyCopied;
+
+    /// <summary>這個帳號有「套用前的備份」→ 顯示「還原設定」</summary>
+    [ObservableProperty]
+    private bool _hasSettingsBackup;
+
     // ---------------- 遊戲設定 ----------------
 
     /// <summary>有沒有套用過遊戲設定檔</summary>

@@ -44,13 +44,21 @@ public sealed class SettingsProfileStore
         _backupsDir = Path.Combine(rootDir, "backups");
     }
 
-    /// <summary>「主帳號設定」固定用這個編號（每次自動記錄都覆蓋同一份）</summary>
-    public const string MainProfileId = "main-account";
+    /// <summary>舊版「主帳號設定」用的編號（只為了相容舊資料）</summary>
+    public const string LegacyMainProfileId = "main-account";
+
+    /// <summary>每個帳號自動記錄的設定，固定用「acct-帳號編號」（每次記錄都覆蓋同一份）</summary>
+    public static string AccountProfileId(string accountId) => "acct-" + accountId;
 
     // ---------------- 設定檔 ----------------
 
-    /// <summary>自動記下的主帳號設定；還沒記過就是 null</summary>
-    public SettingsProfile? MainProfile() => ListProfiles().FirstOrDefault(p => p.Id == MainProfileId);
+    /// <summary>某個帳號自動記下的遊戲設定；還沒記過就是 null</summary>
+    public SettingsProfile? AccountProfile(string accountId) =>
+        ListProfiles().FirstOrDefault(p => p.Id == AccountProfileId(accountId));
+
+    /// <summary>舊版的主帳號設定（新版改成每個帳號各自記錄）</summary>
+    public SettingsProfile? LegacyMainProfile() =>
+        ListProfiles().FirstOrDefault(p => p.Id == LegacyMainProfileId);
 
     /// <summary>所有設定檔，新的在前面</summary>
     public List<SettingsProfile> ListProfiles() => ReadAll(_profilesDir);

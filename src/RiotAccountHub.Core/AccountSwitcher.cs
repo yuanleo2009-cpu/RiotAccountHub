@@ -391,6 +391,8 @@ public enum SwitchStep
     LoggingIn,
     /// <summary>套用遊戲設定</summary>
     ApplyingSettings,
+    /// <summary>讀取遊戲設定</summary>
+    ReadingSettings,
 }
 
 /// <summary>登入流程進行中：記住開始前的狀態（已加密），取消時放回去</summary>

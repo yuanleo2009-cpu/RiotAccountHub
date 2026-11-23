@@ -96,24 +96,25 @@ public sealed class SettingsSync
     }
 
     /// <summary>
-    /// 自動記下「主帳號設定」：讀取目前登入帳號（必須是主帳號）的設定，
-    /// 存成固定編號的設定檔（每次覆蓋同一份）。
+    /// 記下某個帳號的遊戲設定：讀取目前登入帳號（必須是 expectedPuuid 這個帳號）的設定，
+    /// 存成「acct-帳號編號」這份設定檔（每次覆蓋同一份）。
+    /// 「複製設定」和「主帳號設定」都是用這份。
     /// </summary>
-    public async Task<SettingsProfile> CaptureMainAsync(string mainPuuid)
+    public async Task<SettingsProfile> CaptureAccountAsync(string accountId, string expectedPuuid)
     {
-        var (who, tokens) = await RequireLoginAsync(mainPuuid);
+        var (who, tokens) = await RequireLoginAsync(expectedPuuid);
         var json = await _client.DownloadAsync(tokens);
 
         var profile = new SettingsProfile
         {
-            Id = SettingsProfileStore.MainProfileId,
-            Name = $"主帳號設定（{who.RiotId}）",
+            Id = SettingsProfileStore.AccountProfileId(accountId),
+            Name = $"{who.RiotId} 的設定",
             SourceRiotId = who.RiotId,
             SourcePuuid = who.Puuid,
             SettingsJson = json,
         };
         Store.SaveProfile(profile);
-        AppLog.Info("已自動記下主帳號設定");
+        AppLog.Info("已記下帳號的遊戲設定：" + accountId);
         return profile;
     }
 

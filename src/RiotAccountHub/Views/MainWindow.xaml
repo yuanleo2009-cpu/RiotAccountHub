@@ -32,6 +32,7 @@
             </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -39,14 +40,6 @@
             <!-- 上方標題列 -->
             <DockPanel Margin="28,22,28,14">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-                    <Button Style="{StaticResource GhostButton}" Margin="0,0,4,0"
-                            Command="{Binding OpenSettingsSyncCommand}"
-                            ToolTip="把一個帳號的鍵位、靈敏度、準星等設定套用到另一個帳號">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE765;" Style="{StaticResource ButtonIcon}" />
-                            <TextBlock Text="遊戲設定" />
-                        </StackPanel>
-                    </Button>
                     <Button Style="{StaticResource GhostButton}" Margin="0,0,8,0"
                             Command="{Binding RestoreOriginalCommand}"
                             IsEnabled="{Binding HasOriginalBackup}"
@@ -75,8 +68,27 @@
                 </StackPanel>
             </DockPanel>
 
+            <!-- 「已複製」橫幅（有複製設定時才顯示） -->
+            <Border Grid.Row="1" Margin="28,0,28,12" CornerRadius="10" Padding="16,10"
+                    Background="#1A4CC3CF" BorderBrush="#664CC3CF" BorderThickness="1"
+                    Visibility="{Binding HasCopiedSettings, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" FontSize="13" Padding="10,4"
+                            Command="{Binding ClearCopiedSettingsCommand}" ToolTip="不再顯示「套用設定」按鈕">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE711;" Style="{StaticResource ButtonIcon}" FontSize="11" Margin="0,1,6,0" />
+                            <TextBlock Text="清除" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="&#xE8C8;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="#4CC3CF"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock Text="{Binding CopiedSettingsText}" VerticalAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextBrush}" />
+                </DockPanel>
+            </Border>
+
             <!-- 帳號卡片列表 -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Padding="28,4,22,8">
                 <ItemsControl ItemsSource="{Binding Accounts}" Margin="0,0,6,0">
                     <ItemsControl.ItemTemplate>
@@ -219,7 +231,24 @@
                                                 </Button.Style>
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="&#xE735;" Style="{StaticResource ButtonIcon}" Foreground="#FFD978" />
-                                                    <TextBlock Text="套用主帳號設定" />
+                                                    <TextBlock Text="套用主帳號" />
+                                                </StackPanel>
+                                            </Button>
+                                            <!-- 套用複製的設定（有複製、而且這張不是來源時才顯示） -->
+                                            <Button Height="44" FontSize="14" Margin="0,0,8,0" Padding="14,0"
+                                                    Visibility="{Binding CanApplyCopied, Converter={StaticResource BoolToVisibility}}"
+                                                    ToolTip="切換到這個帳號、套用剛剛複製的鍵位 / 靈敏度 / 準星，然後開始遊戲"
+                                                    Command="{Binding DataContext.ApplyCopiedSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                                        <Setter Property="Background" Value="#E61F232C" />
+                                                        <Setter Property="BorderBrush" Value="#804CC3CF" />
+                                                    </Style>
+                                                </Button.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE77F;" Style="{StaticResource ButtonIcon}" Foreground="#4CC3CF" />
+                                                    <TextBlock Text="套用設定" />
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource PrimaryButton}" Height="44" MinWidth="200" FontSize="15"
@@ -232,6 +261,47 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Right">
+                                            <!-- 複製設定（已經是複製來源的話，顯示「已複製」） -->
+                                            <Button FontSize="13" Padding="8,5"
+                                                    ToolTip="複製這個帳號的鍵位、靈敏度、準星，再到其他帳號按「套用設定」"
+                                                    Command="{Binding DataContext.CopySettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCopySource}" Value="True">
+                                                                <Setter Property="Foreground" Value="#4CC3CF" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE8C8;" Style="{StaticResource ButtonIcon}" FontSize="12" Margin="0,1,5,0" />
+                                                    <TextBlock>
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="複製設定" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCopySource}" Value="True">
+                                                                        <Setter Property="Text" Value="已複製" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Button>
+                                            <!-- 還原設定（有套用前的備份才顯示） -->
+                                            <Button Style="{StaticResource GhostButton}" FontSize="13" Padding="8,5"
+                                                    Visibility="{Binding HasSettingsBackup, Converter={StaticResource BoolToVisibility}}"
+                                                    ToolTip="把這個帳號的遊戲設定改回最近一次套用前的樣子"
+                                                    Command="{Binding DataContext.RestoreSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE7A7;" Style="{StaticResource ButtonIcon}" FontSize="12" Margin="0,1,5,0" />
+                                                    <TextBlock Text="還原設定" />
+                                                </StackPanel>
+                                            </Button>
                                             <Button Style="{StaticResource GhostButton}" FontSize="13" Padding="8,5"
                                                     ToolTip="主帳號的遊戲設定可以一鍵套用到其他帳號"
                                                     Command="{Binding DataContext.ToggleMainCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -251,20 +321,16 @@
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource GhostButton}" FontSize="13" Padding="8,5"
+                                                    ToolTip="編輯名稱、登入方式、備註"
                                                     Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="&#xE70F;" Style="{StaticResource ButtonIcon}" FontSize="12" Margin="0,1,5,0" />
-                                                    <TextBlock Text="編輯" />
-                                                </StackPanel>
+                                                <TextBlock Text="&#xE70F;" FontFamily="{StaticResource IconFont}" FontSize="13" />
                                             </Button>
                                             <Button Style="{StaticResource DangerGhostButton}" FontSize="13" Padding="8,5"
+                                                    ToolTip="刪除這個帳號"
                                                     Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="&#xE74D;" Style="{StaticResource ButtonIcon}" FontSize="12" Margin="0,1,5,0" />
-                                                    <TextBlock Text="刪除" />
-                                                </StackPanel>
+                                                <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFont}" FontSize="13" />
                                             </Button>
                                         </StackPanel>
                                     </StackPanel>
@@ -283,7 +349,7 @@
             </ScrollViewer>
 
             <!-- 沒有帳號時的引導畫面 -->
-            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+            <StackPanel Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
                 <Border Width="72" Height="72" CornerRadius="36" Background="{StaticResource SurfaceBrush}" HorizontalAlignment="Center">
                     <TextBlock Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="30"
@@ -303,7 +369,7 @@
             </StackPanel>
 
             <!-- 下方狀態列 -->
-            <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="28,8">
+            <Border Grid.Row="3" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="28,8">
                 <DockPanel>
                     <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" Margin="16,0,0,0"
                               VerticalAlignment="Center" FontSize="12"

@@ -35,19 +35,6 @@ public sealed class DialogService : IDialogService
         return window.ShowDialog() == true;
     }
 
-    public string? PromptText(string title, string message, string defaultText)
-    {
-        var window = new TextPromptWindow(title, message, defaultText) { Owner = Owner() };
-        return window.ShowDialog() == true ? window.ResultText : null;
-    }
-
-    public void ShowSettingsSync(SettingsSyncViewModel viewModel)
-    {
-        var window = new SettingsSyncWindow { DataContext = viewModel, Owner = Owner() };
-        window.Loaded += async (_, _) => await viewModel.InitializeAsync();
-        window.ShowDialog();
-    }
-
     public string? PickRiotClientExe(string? initialDirectory)
     {
         var dialog = new OpenFileDialog
