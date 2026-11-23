@@ -49,13 +49,22 @@ Write-Host "[2/3] 複製到 $installDir" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 Copy-Item -Path (Join-Path $publishDir $exeName) -Destination $installExe -Force
 
+# 捷徑用的圖示檔：檔名裡帶著圖示內容的「指紋」。
+# 換了新 logo → 檔名跟著變 → Windows 一定會重新讀圖示，不會一直顯示存起來的舊圖示。
+$iconSource = Join-Path $root 'src\RiotAccountHub\Assets\app.ico'
+$iconHash   = (Get-FileHash -Algorithm SHA256 $iconSource).Hash.Substring(0, 8).ToLowerInvariant()
+$installIcon = Join-Path $installDir "icon-$iconHash.ico"
+Get-ChildItem -Path $installDir -Filter 'icon-*.ico' -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -ne $installIcon } | Remove-Item -Force -ErrorAction SilentlyContinue
+Copy-Item -Path $iconSource -Destination $installIcon -Force
+
 # ---- 3. 建立捷徑 ----
 function New-AppShortcut([string]$path) {
     $shell = New-Object -ComObject WScript.Shell
     $lnk = $shell.CreateShortcut($path)
     $lnk.TargetPath = $installExe
     $lnk.WorkingDirectory = $installDir
-    $lnk.IconLocation = "$installExe,0"
+    $lnk.IconLocation = "$installIcon,0"
     $lnk.Description = 'Valorant / Riot 帳號切換器'
     $lnk.Save()
 }
@@ -67,6 +76,21 @@ New-AppShortcut $startMenuShortcut
 if ($Desktop) {
     New-AppShortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) $shortcutName)
     Write-Host '      也已在桌面建立捷徑' -ForegroundColor Cyan
+}
+
+# 已經有的桌面捷徑、工作列釘選，也一起換成新的圖示
+$shell = New-Object -ComObject WScript.Shell
+$existing = @(
+    (Join-Path ([Environment]::GetFolderPath('Desktop')) $shortcutName),
+    (Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\$shortcutName")
+)
+foreach ($path in $existing) {
+    if (-not (Test-Path $path)) { continue }
+    $lnk = $shell.CreateShortcut($path)
+    if ($lnk.TargetPath -ieq $installExe) {
+        $lnk.IconLocation = "$installIcon,0"
+        $lnk.Save()
+    }
 }
 
 Write-Host ''
