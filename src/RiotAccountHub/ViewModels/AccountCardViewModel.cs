@@ -2,8 +2,22 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RiotAccountHub.Core.Cards;
 using RiotAccountHub.Core.Models;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.ViewModels;
+
+/// <summary>帳號目前的狀態</summary>
+public enum AccountActivity
+{
+    /// <summary>沒有在用</summary>
+    None,
+    /// <summary>剛按了啟動，Riot Client / 遊戲還在開啟中</summary>
+    Launching,
+    /// <summary>Riot Client 登入的是這個帳號，但遊戲還沒開</summary>
+    LoggedIn,
+    /// <summary>VALORANT 正在用這個帳號執行</summary>
+    InGame,
+}
 
 /// <summary>
 /// 一張帳號卡片要顯示的內容。
@@ -48,6 +62,18 @@ public sealed partial class AccountCardViewModel : ObservableObject
 
     public string LoginMethodText => Model.LoginMethod.ToDisplay();
 
+    /// <summary>
+    /// 登入方式標籤上的小圖示（用通用圖示，不使用各家公司的商標）：
+    /// Google = 地球、Facebook = 人群、Apple = 蘋果、帳密 = 鑰匙
+    /// </summary>
+    public SymbolRegular LoginMethodIcon => Model.LoginMethod switch
+    {
+        LoginMethod.Google => SymbolRegular.Globe20,
+        LoginMethod.Facebook => SymbolRegular.PeopleCommunity20,
+        LoginMethod.Apple => SymbolRegular.FoodApple20,
+        _ => SymbolRegular.Key20,
+    };
+
     public string Note => Model.Note;
 
     public bool HasNote => !string.IsNullOrWhiteSpace(Model.Note);
@@ -67,12 +93,50 @@ public sealed partial class AccountCardViewModel : ObservableObject
     public string LastUsedText =>
         Model.LastUsedUtc is { } utc ? "上次使用：" + FormatWhen(utc) : "尚未從這裡啟動過";
 
+    // ---------------- 目前狀態 ----------------
+
+    /// <summary>這個帳號現在的狀態：啟動中 / 遊戲中 / 已登入 / 沒有在用</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActivity))]
+    [NotifyPropertyChangedFor(nameof(IsLaunching))]
+    [NotifyPropertyChangedFor(nameof(ActivityText))]
+    [NotifyPropertyChangedFor(nameof(ActivityToolTip))]
+    private AccountActivity _activity = AccountActivity.None;
+
+    /// <summary>這個帳號是不是「使用中」（卡片左側的紅線會亮著）</summary>
+    public bool HasActivity => Activity != AccountActivity.None;
+
+    /// <summary>正在啟動（狀態標籤上的小圓點會閃爍）</summary>
+    public bool IsLaunching => Activity == AccountActivity.Launching;
+
+    public string ActivityText => Activity switch
+    {
+        AccountActivity.Launching => "啟動中",
+        AccountActivity.InGame => "遊戲中",
+        AccountActivity.LoggedIn => "已登入",
+        _ => "",
+    };
+
+    public string ActivityToolTip => Activity switch
+    {
+        AccountActivity.Launching => "已經送出啟動，正在等 Riot Client 和遊戲開啟",
+        AccountActivity.InGame => "VALORANT 正在用這個帳號執行",
+        AccountActivity.LoggedIn => "Riot Client 目前登入的是這個帳號（遊戲還沒開）",
+        _ => "",
+    };
+
     // ---------------- 主帳號 ----------------
 
     /// <summary>這張卡片是不是主帳號</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MainToggleText))]
+    [NotifyPropertyChangedFor(nameof(MainToggleToolTip))]
     private bool _isMain;
+
+    /// <summary>主帳號星星按鈕的說明文字</summary>
+    public string MainToggleToolTip => IsMain
+        ? "這是主帳號（按一下取消）"
+        : "設為主帳號：它的遊戲設定可以一鍵套用到其他帳號";
 
     /// <summary>要不要在「啟動」旁邊顯示「套用主帳號設定」（有主帳號、而且自己不是主帳號）</summary>
     [ObservableProperty]
@@ -85,7 +149,11 @@ public sealed partial class AccountCardViewModel : ObservableObject
 
     /// <summary>目前「已複製」的就是這個帳號的設定</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyButtonText))]
     private bool _isCopySource;
+
+    /// <summary>「複製設定」按鈕上的字</summary>
+    public string CopyButtonText => IsCopySource ? "已複製" : "複製設定";
 
     /// <summary>有複製別的帳號的設定 → 這張卡片顯示「套用設定」</summary>
     [ObservableProperty]

@@ -35,7 +35,14 @@ public sealed partial class MainViewModel : ObservableObject
     private AppSettings _settings = new();
 
     // 段位自動更新：每 15 秒看一次 VALORANT 有沒有在執行，有的話讀目前帳號的段位（只讀本機資料）
-    private readonly DispatcherTimer _rankTimer = new() { Interval = TimeSpan.FromSeconds(15) };
+    // 每 5 秒更新一次「哪個帳號正在使用」；每 15 秒（第 3 次）順便更新段位
+    private readonly DispatcherTimer _rankTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private int _timerTicks;
+    private bool _activityCheckRunning;
+
+    // 剛按了「啟動」的帳號：在遊戲真的開起來之前，卡片顯示「啟動中」（最多 3 分鐘）
+    private (string AccountId, DateTime Utc)? _pendingLaunch;
+    private static readonly TimeSpan LaunchPendingTime = TimeSpan.FromMinutes(3);
     private bool _rankCheckRunning;
     private DateTime _lastRankSaveUtc = DateTime.MinValue;
 
@@ -61,7 +68,11 @@ public sealed partial class MainViewModel : ObservableObject
         _cards = cards;
         _settingsSync = settingsSync;
 
-        Accounts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
+        Accounts.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsEmpty));
+            OnPropertyChanged(nameof(AccountSummary));
+        };
     }
 
     // ==================================================================
@@ -73,6 +84,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>沒有任何帳號時顯示引導畫面</summary>
     public bool IsEmpty => Accounts.Count == 0;
+
+    /// <summary>頁面標題下方的小字，例如「2 個帳號 · 按「啟動」就會切換並開始遊戲」</summary>
+    public string AccountSummary => Accounts.Count == 0
+        ? "還沒有帳號"
+        : $"{Accounts.Count} 個帳號 · 按「啟動」就會切換到那個帳號並開啟遊戲";
 
     /// <summary>進行中的步驟（關閉中 → 切換中 → 啟動中）</summary>
     public ObservableCollection<BusyStepItem> BusySteps { get; } = new();
@@ -137,8 +153,13 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshStatus();
 
         // 開始自動更新段位（程式一打開就先檢查一次）
-        _rankTimer.Tick += async (_, _) => await UpdateRankAsync();
+        _rankTimer.Tick += async (_, _) =>
+        {
+            await UpdateActivityAsync();
+            if (++_timerTicks % 3 == 0) await UpdateRankAsync();
+        };
         _rankTimer.Start();
+        _ = UpdateActivityAsync();
         _ = UpdateRankAsync();
 
         // 之前下載失敗（例如當時沒網路）的卡面圖片，重新試一次
@@ -916,6 +937,60 @@ public sealed partial class MainViewModel : ObservableObject
         card.Model.LastUsedUtc = DateTime.UtcNow;
         SaveAccounts();
         card.Refresh();
+
+        // 卡片馬上顯示「啟動中」，之後由 UpdateActivityAsync 換成「遊戲中」
+        _pendingLaunch = (card.Model.Id, DateTime.UtcNow);
+        foreach (var other in Accounts)
+        {
+            other.Activity = other == card ? AccountActivity.Launching : AccountActivity.None;
+        }
+        _ = UpdateActivityAsync();
+    }
+
+    /// <summary>
+    /// 更新每張卡片的狀態標籤（啟動中 / 遊戲中 / 已登入）。
+    /// 只讀本機 Riot Client 的資料，而且在背景執行緒做，不會卡住畫面。
+    /// </summary>
+    private async Task UpdateActivityAsync()
+    {
+        if (_activityCheckRunning || IsBusy) return;
+        _activityCheckRunning = true;
+        try
+        {
+            var active = await _switcher.ReadActiveAccountAsync();
+            if (IsBusy) return; // 等待期間開始切換帳號了，這次的結果不要用
+
+            if (_pendingLaunch is { } pending && DateTime.UtcNow - pending.Utc > LaunchPendingTime)
+            {
+                _pendingLaunch = null; // 等太久了（例如使用者把 Riot Client 關掉），不再顯示啟動中
+            }
+
+            foreach (var card in Accounts)
+            {
+                var isCurrent = active is not null && IsSameAccount(card.Model, active.Who);
+                if (isCurrent && active!.InGame)
+                {
+                    card.Activity = AccountActivity.InGame;
+                    if (_pendingLaunch?.AccountId == card.Model.Id) _pendingLaunch = null;
+                }
+                else if (_pendingLaunch?.AccountId == card.Model.Id)
+                {
+                    card.Activity = AccountActivity.Launching;
+                }
+                else
+                {
+                    card.Activity = isCurrent ? AccountActivity.LoggedIn : AccountActivity.None;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("更新帳號狀態失敗", ex); // 狀態只是附加資訊，失敗不打擾使用者
+        }
+        finally
+        {
+            _activityCheckRunning = false;
+        }
     }
 
     private void SaveAccounts() => _accountRepo.Save(Accounts.Select(a => a.Model));

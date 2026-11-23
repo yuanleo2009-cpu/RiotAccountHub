@@ -27,8 +27,8 @@ internal static class DarkTitleBar
                 var on = 1;
                 DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, ref on, sizeof(int));
 
-                // 標題列顏色 = 背景色 #0F1115（Windows 用 BGR 順序：0x00BBGGRR）
-                var color = 0x0015110F;
+                // 標題列顏色 = 背景色 #0C0F14（Windows 用 BGR 順序：0x00BBGGRR）
+                var color = 0x00140F0C;
                 DwmSetWindowAttribute(hwnd, DwmwaCaptionColor, ref color, sizeof(int));
             }
             catch

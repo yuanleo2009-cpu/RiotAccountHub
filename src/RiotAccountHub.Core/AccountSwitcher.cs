@@ -23,6 +23,12 @@ public sealed class AccountSwitcher
     private readonly string _liveRoot;
     private readonly IReadOnlyList<LoginItem> _items;
 
+    /// <summary>
+    /// 關閉 Riot Client 與遊戲。放到背景執行緒做，
+    /// 這樣等待程序結束的時候，畫面（進度動畫）不會被卡住。
+    /// </summary>
+    private Task CloseAllInBackgroundAsync() => Task.Run(() => _riot.CloseAllAsync(CloseTimeout));
+
     // 同一時間只允許一個流程在跑
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -50,6 +56,17 @@ public sealed class AccountSwitcher
 
     /// <summary>有沒有遊戲正在執行</summary>
     public bool IsGameRunning() => _riot.IsGameRunning();
+
+    /// <summary>
+    /// 目前 Riot Client 登入的是哪個帳號、VALORANT 有沒有在執行（只讀本機資料）。
+    /// Riot Client 沒開或還沒登入就回傳 null。放在背景執行緒做，不會卡住畫面。
+    /// </summary>
+    public Task<ActiveAccount?> ReadActiveAccountAsync() => Task.Run(async () =>
+    {
+        if (!_riot.IsAnyRiotProcessRunning()) return null;
+        var who = await _api.GetRiotIdAsync();
+        return who is null ? null : new ActiveAccount(who, _riot.IsValorantRunning());
+    });
 
     /// <summary>
     /// 讀取目前正在玩的帳號與段位（只讀本機資料）。
@@ -159,7 +176,7 @@ public sealed class AccountSwitcher
             var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
 
             progress.Report(SwitchStep.Closing);
-            await _riot.CloseAllAsync(CloseTimeout);
+            await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Switching);
             await Task.Run(() =>
@@ -194,7 +211,7 @@ public sealed class AccountSwitcher
             var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
 
             progress.Report(SwitchStep.Closing);
-            await _riot.CloseAllAsync(CloseTimeout);
+            await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Switching);
             await Task.Run(() =>
@@ -220,7 +237,7 @@ public sealed class AccountSwitcher
         RunExclusiveAsync(async () =>
         {
             progress.Report(SwitchStep.Closing);
-            await _riot.CloseAllAsync(CloseTimeout);
+            await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Clearing);
             var previous = await Task.Run(() =>
@@ -269,7 +286,7 @@ public sealed class AccountSwitcher
         RunExclusiveAsync(async () =>
         {
             progress.Report(SwitchStep.Closing);
-            await _riot.CloseAllAsync(CloseTimeout);
+            await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Saving);
             return await Task.Run(() =>
@@ -293,7 +310,7 @@ public sealed class AccountSwitcher
         RunExclusiveAsync(async () =>
         {
             progress.Report(SwitchStep.Closing);
-            await _riot.CloseAllAsync(CloseTimeout);
+            await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Switching);
             await Task.Run(() => _store.Apply(pending.PreviousState, _liveRoot, _items));
@@ -315,7 +332,7 @@ public sealed class AccountSwitcher
             var original = _store.LoadFromFile(_paths.OriginalBackupFile);
 
             progress.Report(SwitchStep.Closing);
-            await _riot.CloseAllAsync(CloseTimeout);
+            await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Switching);
             await Task.Run(() => _store.Apply(original, _liveRoot, _items));
@@ -367,6 +384,9 @@ public sealed class AccountSwitcher
         }
     }
 }
+
+/// <summary>目前登入中的帳號，以及遊戲是否正在執行</summary>
+public sealed record ActiveAccount(RiotIdInfo Who, bool InGame);
 
 /// <summary>「啟動」按下去之後實際做了什麼</summary>
 public enum LaunchResult

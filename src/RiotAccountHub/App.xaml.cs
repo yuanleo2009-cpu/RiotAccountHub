@@ -6,6 +6,7 @@ using RiotAccountHub.Core.GameSettings;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Snapshots;
 using RiotAccountHub.Core.Storage;
+using RiotAccountHub.Helpers;
 using RiotAccountHub.Services;
 using RiotAccountHub.ViewModels;
 using RiotAccountHub.Views;
@@ -36,6 +37,9 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        // 套用深色主題與唯一的強調色（紅色）
+        AppTheme.Apply();
 
         // ---- 2. 準備資料夾與記錄檔 ----
         var paths = AppPaths.CreateDefault();
