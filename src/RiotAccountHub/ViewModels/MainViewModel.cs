@@ -10,6 +10,7 @@ using RiotAccountHub.Core.Crosshairs;
 using RiotAccountHub.Core.GameSettings;
 using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
+using RiotAccountHub.Core.Startup;
 using RiotAccountHub.Core.Storage;
 using RiotAccountHub.Services;
 
@@ -31,6 +32,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private readonly PlayerCardCache? _cards;
     private readonly SettingsSync? _settingsSync;
+    private readonly StartupRegistration _startup;
 
     private AppSettings _settings = new();
 
@@ -57,8 +59,10 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsRepository settingsRepo,
         IDialogService dialogs,
         PlayerCardCache? cards = null,
-        SettingsSync? settingsSync = null)
+        SettingsSync? settingsSync = null,
+        StartupRegistration? startup = null)
     {
+        _startup = startup ?? new StartupRegistration();
         _paths = paths;
         _switcher = switcher;
         _riot = riot;
@@ -127,6 +131,61 @@ public sealed partial class MainViewModel : ObservableObject
         AppLog.Info("自動開始遊戲：" + (value ? "開啟" : "關閉"));
     }
 
+    /// <summary>開機（登入 Windows）時自動開啟本程式</summary>
+    [ObservableProperty]
+    private bool _startWithWindows;
+
+    // 程式剛開啟、正在讀取目前設定時，不要把「讀到的值」又寫回登錄檔
+    private bool _loadingStartupSetting;
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (_loadingStartupSetting) return;
+        try
+        {
+            if (value)
+            {
+                _startup.Enable(Environment.ProcessPath ?? throw new IOException("找不到程式本身的路徑"));
+            }
+            else
+            {
+                _startup.Disable();
+            }
+            AppLog.Info("開機時自動啟動：" + (value ? "開啟" : "關閉"));
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            AppLog.Error("無法變更開機自動啟動", ex);
+            _dialogs.ShowError("無法變更開機自動啟動",
+                "Windows 不允許本程式變更這個設定（可能被防毒軟體或公司的電腦政策擋住）。\n\n" +
+                "你也可以到「工作管理員 → 開機應用程式」手動調整。");
+
+            // 把開關撥回原本的位置
+            _loadingStartupSetting = true;
+            StartWithWindows = !value;
+            _loadingStartupSetting = false;
+        }
+    }
+
+    /// <summary>讀取目前的開機啟動設定（以 Windows 登錄檔為準）</summary>
+    private void LoadStartupSetting()
+    {
+        try
+        {
+            if (Environment.ProcessPath is { } exe) _startup.RepairPath(exe);
+            _loadingStartupSetting = true;
+            StartWithWindows = _startup.IsEnabled();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            AppLog.Error("讀取開機自動啟動設定失敗", ex);
+        }
+        finally
+        {
+            _loadingStartupSetting = false;
+        }
+    }
+
     /// <summary>畫面下方顯示的 Riot Client 路徑</summary>
     [ObservableProperty]
     private string _riotClientPathText = "";
@@ -140,6 +199,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = _settingsRepo.Load();
         AutoStartGame = _settings.AutoStartGame;
+        LoadStartupSetting();
 
         foreach (var account in _accountRepo.Load())
         {

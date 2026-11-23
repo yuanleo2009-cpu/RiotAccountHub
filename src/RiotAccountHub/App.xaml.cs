@@ -5,6 +5,7 @@ using RiotAccountHub.Core.Cards;
 using RiotAccountHub.Core.GameSettings;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Snapshots;
+using RiotAccountHub.Core.Startup;
 using RiotAccountHub.Core.Storage;
 using RiotAccountHub.Helpers;
 using RiotAccountHub.Services;
@@ -75,6 +76,14 @@ public partial class App : Application
         // ---- 4. 顯示主畫面 ----
         var window = new MainWindow { DataContext = viewModel };
         MainWindow = window;
+
+        // 如果是 Windows 開機時自動啟動的（帶 --startup 參數），就縮小到工作列，不要突然跳出視窗
+        if (e.Args.Contains(StartupRegistration.StartupArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            window.ShowActivated = false;
+            window.WindowState = WindowState.Minimized;
+            AppLog.Info("由開機自動啟動，縮小開啟");
+        }
         window.Show();
         viewModel.Initialize();
     }
