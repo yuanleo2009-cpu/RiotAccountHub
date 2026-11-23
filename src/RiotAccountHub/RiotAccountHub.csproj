@@ -37,6 +37,7 @@
   <ItemGroup>
     <!-- 微軟官方的 MVVM 小工具,幫我們少寫很多重複的程式碼 -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4370.26" />
   </ItemGroup>
 
   <ItemGroup>

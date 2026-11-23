@@ -35,6 +35,30 @@ public sealed class DialogService : IDialogService
         return window.ShowDialog() == true;
     }
 
+    public void ShowCrosshairs(CrosshairsViewModel viewModel)
+    {
+        var window = new CrosshairsWindow { DataContext = viewModel, Owner = Owner() };
+        window.ShowDialog();
+    }
+
+    public void ShowCrosshairDetail(CrosshairItemViewModel item, CrosshairsViewModel owner)
+    {
+        var window = new CrosshairDetailWindow(item, owner) { Owner = Owner() };
+        window.ShowDialog();
+    }
+
+    public (string Name, string Code)? ShowCrosshairEditor(string title, string name, string code, Helpers.CrosshairBackground background)
+    {
+        var window = new CrosshairEditorWindow(title, name, code, background) { Owner = Owner() };
+        return window.ShowDialog() == true ? (window.ResultName, window.ResultCode) : null;
+    }
+
+    public void ShowWebBrowser(string url, string title, string hint)
+    {
+        var window = new WebBrowserWindow(url, title, hint) { Owner = Owner() };
+        window.ShowDialog();
+    }
+
     public string? PickRiotClientExe(string? initialDirectory)
     {
         var dialog = new OpenFileDialog

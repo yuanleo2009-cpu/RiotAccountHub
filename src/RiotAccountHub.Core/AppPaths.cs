@@ -40,6 +40,12 @@ public sealed class AppPaths
     /// <summary>遊戲設定檔與套用前備份（只有遊戲設定，沒有登入資料）</summary>
     public string GameSettingsDir => Path.Combine(DataRoot, "game-settings");
 
+    /// <summary>使用者自己加的準星與收藏</summary>
+    public string CrosshairsFile => Path.Combine(DataRoot, "crosshairs.json");
+
+    /// <summary>內建瀏覽器（WebView2）的資料夾</summary>
+    public string WebViewDataDir => Path.Combine(DataRoot, "webview2");
+
     /// <summary>卡面圖片的快取資料夾（下載一次就存在這裡）</summary>
     public string CardsDir => Path.Combine(DataRoot, "cards");
 

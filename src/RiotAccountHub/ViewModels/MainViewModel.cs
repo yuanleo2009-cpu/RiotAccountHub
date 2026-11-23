@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RiotAccountHub.Core;
 using RiotAccountHub.Core.Cards;
+using RiotAccountHub.Core.Crosshairs;
 using RiotAccountHub.Core.GameSettings;
 using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
@@ -810,6 +811,14 @@ public sealed partial class MainViewModel : ObservableObject
         SaveAccounts();
         card.Refresh();
         RefreshSettingsFlags();
+    }
+
+    /// <summary>打開「熱門準星」視窗（只做複製代碼，不會修改遊戲設定）</summary>
+    [RelayCommand]
+    private void OpenCrosshairs()
+    {
+        var vm = new CrosshairsViewModel(new CrosshairLibrary(_paths.CrosshairsFile), _dialogs);
+        _dialogs.ShowCrosshairs(vm);
     }
 
     [RelayCommand]

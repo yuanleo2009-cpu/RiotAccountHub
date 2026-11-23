@@ -40,6 +40,14 @@
             <!-- 上方標題列 -->
             <DockPanel Margin="28,22,28,14">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Margin="0,0,4,0"
+                            Command="{Binding OpenCrosshairsCommand}"
+                            ToolTip="收藏、預覽、複製準星代碼，也可以到 VCRDB 挑熱門準星">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8F0;" Style="{StaticResource ButtonIcon}" />
+                            <TextBlock Text="熱門準星" />
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource GhostButton}" Margin="0,0,8,0"
                             Command="{Binding RestoreOriginalCommand}"
                             IsEnabled="{Binding HasOriginalBackup}"

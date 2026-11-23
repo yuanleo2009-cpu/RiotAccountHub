@@ -24,6 +24,18 @@ public interface IDialogService
     /// <summary>帳號資料填寫視窗；按儲存回傳 true</summary>
     bool ShowAccountEditor(AccountEditViewModel viewModel);
 
+    /// <summary>打開「熱門準星」視窗</summary>
+    void ShowCrosshairs(CrosshairsViewModel viewModel);
+
+    /// <summary>準星大圖預覽</summary>
+    void ShowCrosshairDetail(CrosshairItemViewModel item, CrosshairsViewModel owner);
+
+    /// <summary>新增 / 編輯準星；按儲存回傳（名稱, 代碼），取消回傳 null</summary>
+    (string Name, string Code)? ShowCrosshairEditor(string title, string name, string code, Helpers.CrosshairBackground background);
+
+    /// <summary>在程式內用 WebView2 開網頁（關掉視窗才會回來）</summary>
+    void ShowWebBrowser(string url, string title, string hint);
+
     /// <summary>請使用者選擇 RiotClientServices.exe；取消回傳 null</summary>
     string? PickRiotClientExe(string? initialDirectory);
 }
