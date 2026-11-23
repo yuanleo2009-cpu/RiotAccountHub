@@ -25,6 +25,11 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
         Profiles.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
 
+    /// <summary>
+    /// 套用或還原成功時通知主畫面（主畫面會記在對應的帳號卡片上，下次啟動時顯示提示）
+    /// </summary>
+    public event Action<SettingsChange>? Changed;
+
     /// <summary>存好的設定檔</summary>
     public ObservableCollection<SettingsProfileItem> Profiles { get; } = new();
 
@@ -140,11 +145,13 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
         IsBusy = true;
         await _sync.ApplyAsync(item.Model, who.Puuid!);
         IsBusy = false;
+        Changed?.Invoke(new SettingsChange(who, item.Name, Restored: false));
 
         UpdateBackupInfo();
         _dialogs.ShowInfo("套用成功",
             $"已把「{item.Name}」套用到「{who.RiotId}」。\n\n" +
-            "請重新開啟 VALORANT（在主畫面按這個帳號的「啟動」），新的設定才會生效。");
+            "請重新開啟 VALORANT（在主畫面按這個帳號的「啟動」），新的設定才會生效。\n" +
+            "啟動時會再顯示一次「設定已套用」的提示。");
     });
 
     /// <summary>刪除設定檔</summary>
@@ -180,6 +187,7 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
         IsBusy = true;
         await _sync.RestoreAsync(who.Puuid!);
         IsBusy = false;
+        Changed?.Invoke(new SettingsChange(who, null, Restored: true));
 
         _dialogs.ShowInfo("還原完成", $"「{who.RiotId}」的設定已經改回原本的樣子。\n請重新開啟 VALORANT，設定才會生效。");
     });
@@ -237,6 +245,9 @@ public sealed partial class SettingsSyncViewModel : ObservableObject
         }
     }
 }
+
+/// <summary>遊戲設定變更的通知：哪個帳號、套用了哪個設定檔（還原時是 null）</summary>
+public sealed record SettingsChange(RiotIdInfo Account, string? ProfileName, bool Restored);
 
 /// <summary>清單上的一個設定檔</summary>
 public sealed class SettingsProfileItem

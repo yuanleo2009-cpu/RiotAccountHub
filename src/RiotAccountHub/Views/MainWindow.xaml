@@ -163,6 +163,15 @@
                                                     Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}">
                                                 <TextBlock Text="{Binding Note}" FontSize="12" Foreground="{StaticResource TextBrush}" />
                                             </Border>
+                                            <!-- 已套用的遊戲設定檔 -->
+                                            <Border Style="{StaticResource Tag}" Background="#263FB950" ToolTip="{Binding AppliedSettingsToolTip}"
+                                                    Visibility="{Binding HasAppliedSettings, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE765;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                                               Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,1,6,0" />
+                                                    <TextBlock Text="{Binding AppliedSettingsText}" FontSize="12" Foreground="{StaticResource TextBrush}" />
+                                                </StackPanel>
+                                            </Border>
                                             <Border>
                                                 <Border.Style>
                                                     <Style TargetType="Border" BasedOn="{StaticResource Tag}">
@@ -369,6 +378,26 @@
 
                     <TextBlock Text="{Binding BusyDetail}" HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" Margin="0,16,0,0" Foreground="{StaticResource TextSecondaryBrush}" />
+
+                    <!-- 「遊戲設定已套用」之類的綠色提示（有內容才顯示） -->
+                    <Border Margin="0,16,0,0" CornerRadius="8" Padding="14,10" Background="#263FB950"
+                            BorderBrush="#663FB950" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding BusyNotice}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <DockPanel>
+                            <TextBlock Text="&#xE930;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                                       Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Text="{Binding BusyNotice}" TextWrapping="Wrap" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextBrush}" />
+                        </DockPanel>
+                    </Border>
                 </StackPanel>
             </Border>
         </Grid>

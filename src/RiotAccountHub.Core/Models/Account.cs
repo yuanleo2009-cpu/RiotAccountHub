@@ -27,6 +27,15 @@ public sealed class Account
     /// <summary>這個帳號在遊戲裡裝備的卡面編號（用來顯示頭像與卡片背景）</summary>
     public string? PlayerCardId { get; set; }
 
+    /// <summary>最近一次套用到這個帳號的遊戲設定檔名稱（還原後會清掉）</summary>
+    public string? AppliedSettingsName { get; set; }
+
+    /// <summary>套用遊戲設定的時間（UTC）</summary>
+    public DateTime? AppliedSettingsUtc { get; set; }
+
+    /// <summary>下次按「啟動」時要顯示的提示，例如「已套用遊戲設定「主號設定」」。顯示一次後清除。</summary>
+    public string? PendingLaunchNotice { get; set; }
+
     /// <summary>最後一次看到的段位（還沒用啟動器開過遊戲就是 null）</summary>
     public RankInfo? Rank { get; set; }
 

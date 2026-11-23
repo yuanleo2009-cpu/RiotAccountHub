@@ -87,6 +87,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _busyCompleted;
 
+    /// <summary>進度畫面上額外的綠色提示（例如「已套用遊戲設定」）；空字串就不顯示</summary>
+    [ObservableProperty]
+    private string _busyNotice = "";
+
     /// <summary>有沒有原本狀態的備份（決定「還原原本狀態」按鈕能不能按）</summary>
     [ObservableProperty]
     private bool _hasOriginalBackup;
@@ -241,7 +245,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (result == LaunchResult.LaunchedWithoutSwitch) StartAutoStartGame();
             await ShowCompletedAsync(result == LaunchResult.AlreadyPlaying
                 ? "你已經在玩這個帳號了，已切換到遊戲視窗。"
-                : AutoStartGame ? "這個帳號已經登入，正在自動開始遊戲！" : "這個帳號已經登入，直接啟動 VALORANT！");
+                : AutoStartGame ? "這個帳號已經登入，正在自動開始遊戲！" : "這個帳號已經登入，直接啟動 VALORANT！", card);
             return;
         }
 
@@ -254,7 +258,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         await ShowCompletedAsync(AutoStartGame
             ? "已啟動！Riot Client 登入完成後會自動開始遊戲。"
-            : "已啟動！請在 Riot Client 按「開始遊戲」。");
+            : "已啟動！請在 Riot Client 按「開始遊戲」。", card);
     });
 
     // ==================================================================
@@ -484,7 +488,34 @@ public sealed partial class MainViewModel : ObservableObject
     private void OpenSettingsSync()
     {
         if (_settingsSync is null) return;
-        _dialogs.ShowSettingsSync(new SettingsSyncViewModel(_settingsSync, _dialogs));
+        var vm = new SettingsSyncViewModel(_settingsSync, _dialogs);
+        vm.Changed += OnGameSettingsChanged;
+        _dialogs.ShowSettingsSync(vm);
+    }
+
+    /// <summary>
+    /// 遊戲設定套用 / 還原成功：記在對應帳號的卡片上，
+    /// 下次對這個帳號按「啟動」時會顯示「設定已套用」的提示。
+    /// </summary>
+    private void OnGameSettingsChanged(SettingsChange change)
+    {
+        var card = Accounts.FirstOrDefault(a => IsSameAccount(a.Model, change.Account));
+        if (card is null) return; // 這個帳號不在清單裡
+
+        if (change.Restored)
+        {
+            card.Model.AppliedSettingsName = null;
+            card.Model.AppliedSettingsUtc = null;
+            card.Model.PendingLaunchNotice = "已還原成套用前的遊戲設定，這次進遊戲就會生效";
+        }
+        else
+        {
+            card.Model.AppliedSettingsName = change.ProfileName;
+            card.Model.AppliedSettingsUtc = DateTime.UtcNow;
+            card.Model.PendingLaunchNotice = $"已套用遊戲設定「{change.ProfileName}」，這次進遊戲就會生效";
+        }
+        SaveAccounts();
+        card.Refresh();
     }
 
     [RelayCommand]
@@ -637,18 +668,32 @@ public sealed partial class MainViewModel : ObservableObject
         });
     }
 
-    private async Task ShowCompletedAsync(string message)
+    private async Task ShowCompletedAsync(string message, AccountCardViewModel? card = null)
     {
         foreach (var item in BusySteps) item.State = StepState.Done;
         BusyCompleted = true;
         BusyDetail = message;
-        await Task.Delay(900); // 讓使用者看一眼「完成」就收起來
+
+        // 這個帳號剛套用過遊戲設定 → 這次啟動時顯示「設定已套用」，顯示後就清掉
+        var notice = card?.Model.PendingLaunchNotice;
+        if (!string.IsNullOrEmpty(notice))
+        {
+            BusyNotice = notice;
+            card!.Model.PendingLaunchNotice = null;
+            SaveAccounts();
+            await Task.Delay(3000); // 有提示時多停一下，讓使用者看清楚
+        }
+        else
+        {
+            await Task.Delay(900); // 讓使用者看一眼「完成」就收起來
+        }
     }
 
     private void EndBusy()
     {
         IsBusy = false;
         BusyCompleted = false;
+        BusyNotice = "";
     }
 
     private static string StepLabel(SwitchStep step) => step switch

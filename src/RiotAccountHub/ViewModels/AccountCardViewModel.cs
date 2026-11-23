@@ -67,6 +67,22 @@ public sealed partial class AccountCardViewModel : ObservableObject
     public string LastUsedText =>
         Model.LastUsedUtc is { } utc ? "上次使用：" + FormatWhen(utc) : "尚未從這裡啟動過";
 
+    // ---------------- 遊戲設定 ----------------
+
+    /// <summary>有沒有套用過遊戲設定檔</summary>
+    public bool HasAppliedSettings => !string.IsNullOrEmpty(Model.AppliedSettingsName);
+
+    /// <summary>卡片上的標籤，例如「設定：主號設定」</summary>
+    public string AppliedSettingsText => $"設定：{Model.AppliedSettingsName}";
+
+    /// <summary>還沒進遊戲讓設定生效（套用後還沒用啟動器開過）</summary>
+    public bool HasPendingNotice => !string.IsNullOrEmpty(Model.PendingLaunchNotice);
+
+    public string AppliedSettingsToolTip =>
+        $"已套用遊戲設定「{Model.AppliedSettingsName}」" +
+        (Model.AppliedSettingsUtc is { } t ? $"\n套用時間：{TimeText.FormatWhen(t)}" : "") +
+        (HasPendingNotice ? "\n下次按「啟動」進遊戲後生效" : "");
+
     // ---------------- 段位 ----------------
 
     /// <summary>有沒有段位資料</summary>
