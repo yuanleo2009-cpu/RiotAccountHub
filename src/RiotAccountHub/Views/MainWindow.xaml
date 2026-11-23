@@ -318,6 +318,12 @@
 
                                                 <!-- 次要動作：兩個常用的有文字，其他只放圖示（滑鼠移上去有說明） -->
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="{StaticResource Gap.Top8}">
+                                                    <!-- 戰績：用內建瀏覽器打開 Tracker.gg 的個人頁面 -->
+                                                    <ui:Button Style="{StaticResource Btn.GhostSmall}"
+                                                               Icon="{ui:SymbolIcon DataTrending20}" Content="戰績"
+                                                               ToolTip="在 Tracker.gg 看這個帳號的戰績（用程式內的瀏覽器開啟）"
+                                                               Command="{Binding DataContext.OpenTrackerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}" />
                                                     <ui:Button Icon="{ui:SymbolIcon Copy20}" Content="{Binding CopyButtonText}"
                                                                ToolTip="複製這個帳號的鍵位、靈敏度、準星，再到其他帳號按「套用設定」"
                                                                Command="{Binding DataContext.CopySettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"

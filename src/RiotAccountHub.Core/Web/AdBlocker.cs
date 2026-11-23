@@ -6,7 +6,7 @@ namespace RiotAccountHub.Core.Web;
 ///   2. 用一段 CSS 把網頁上空出來的廣告欄位藏起來 → 不會留下空白
 /// 不會修改網站本身的內容或功能。
 ///
-/// 清單來源：在 VCRDB 實際載入時觀察到的廣告網域（NitroPay 聯播網與它串接的廣告商），
+/// 清單來源：在 VCRDB、Tracker.gg 實際載入時觀察到的廣告網域（NitroPay 聯播網與它串接的廣告商），
 /// 再加上幾個常見的大型廣告網路。
 /// </summary>
 public static class AdBlocker
@@ -24,6 +24,7 @@ public static class AdBlocker
         "3lift.com", "sharethrough.com", "smartadserver.com", "media.net", "adform.net", "teads.tv",
         "gumgum.com", "lijit.com", "sovrn.com", "yieldmo.com", "connatix.com", "taboola.com", "outbrain.com",
         "fastclick.net",
+        "primis.tech", // Tracker.gg 的影片廣告
         // 廣告驗證、身分辨識與追蹤（廣告用）
         "ad-delivery.net", "confiant-integrations.net", "p7cloud.net", "scalibur.io", "id5-sync.com",
         "btloader.com", "cpx.to", "hadronid.net", "rlcdn.com", "tapad.com", "crwdcntrl.net", "ad.gt",

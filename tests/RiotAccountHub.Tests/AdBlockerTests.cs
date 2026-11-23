@@ -16,6 +16,8 @@ public sealed class AdBlockerTests
     [InlineData("https://p.ad.gt/api/v1/p")]
     [InlineData("https://connect.facebook.net/en_US/fbevents.js")]
     [InlineData("https://NITROPAY.COM/x")]
+    // Tracker.gg 的影片廣告
+    [InlineData("https://live.primis.tech/live/liveView.php")]
     public void 廣告網址會被封鎖(string url)
     {
         Assert.True(AdBlocker.IsBlocked(url));
@@ -28,6 +30,10 @@ public sealed class AdBlockerTests
     [InlineData("https://vcrdb.net/_next/static/chunks/main.js")]
     [InlineData("https://fonts.googleapis.com/css2?family=Inter")]
     [InlineData("https://www.google.com/")]
+    [InlineData("https://tracker.gg/valorant/profile/riot/TenZ%230505/overview")]
+    [InlineData("https://api.tracker.gg/api/v2/valorant/standard/profile/riot/x")]
+    [InlineData("https://trackercdn.com/cdn/tracker.gg/valorant/x.png")]
+    [InlineData("https://challenges.cloudflare.com/turnstile/v0/api.js")]
     [InlineData("https://notdoubleclick.net/")]  // 只是名字很像，不是子網域
     [InlineData("https://doubleclick.net.example.com/")]
     [InlineData("about:blank")]

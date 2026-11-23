@@ -12,6 +12,7 @@ using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Startup;
 using RiotAccountHub.Core.Storage;
+using RiotAccountHub.Core.Web;
 using RiotAccountHub.Services;
 
 namespace RiotAccountHub.ViewModels;
@@ -963,6 +964,23 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var vm = new CrosshairsViewModel(new CrosshairLibrary(_paths.CrosshairsFile), _dialogs);
         vm.OpenVcrdbFromMain();
+    }
+
+    /// <summary>
+    /// 「戰績」：用內建瀏覽器打開這個帳號在 Tracker.gg 的個人頁面。
+    /// 只是打開網頁，不會讀取網頁上的資料，也不需要任何登入憑證。
+    /// </summary>
+    [RelayCommand]
+    private void OpenTracker(AccountCardViewModel card)
+    {
+        var url = TrackerLinks.ProfileUrl(card.Model.GameName, card.Model.TagLine);
+        if (url is null)
+        {
+            _dialogs.ShowInfo("沒辦法查戰績", $"「{card.RiotId}」沒有填 Tag（Riot ID 的 # 後面那段）。\n請按卡片上的「編輯」補上，之後就能查戰績。");
+            return;
+        }
+        _dialogs.ShowWebBrowser(url, $"戰績 · {card.RiotId} · Tracker.gg",
+            "這是 Tracker.gg 的網頁。如果顯示「私人」或看不到資料，請在網站上用這個 Riot 帳號登入一次，把戰績設成公開。");
     }
 
     [RelayCommand]
