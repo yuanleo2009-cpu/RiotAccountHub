@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using RiotAccountHub.Core.Crosshairs;
 
 namespace RiotAccountHub.Helpers;
@@ -35,7 +36,7 @@ public sealed class CrosshairPreview : FrameworkElement
 
     public static readonly DependencyProperty BackgroundModeProperty = DependencyProperty.Register(
         nameof(BackgroundMode), typeof(CrosshairBackground), typeof(CrosshairPreview),
-        new FrameworkPropertyMetadata(CrosshairBackground.Dark, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(CrosshairBackground.Map, FrameworkPropertyMetadataOptions.AffectsRender));
 
     /// <summary>準星代碼</summary>
     public string Code
@@ -67,8 +68,95 @@ public sealed class CrosshairPreview : FrameworkElement
 
     private static readonly Brush DarkBg = Frozen(new SolidColorBrush(Color.FromRgb(0x15, 0x17, 0x1C)));
     private static readonly Brush LightBg = Frozen(new SolidColorBrush(Color.FromRgb(0xE9, 0xE5, 0xDB)));
-    private static readonly Brush MapBg = Frozen(new LinearGradientBrush(
-        Color.FromRgb(0x6E, 0x75, 0x7D), Color.FromRgb(0xA4, 0xA9, 0xAE), new Point(0, 0), new Point(1, 1)));
+    /// <summary>模擬遊戲裡的水泥牆面（程式自己產生的材質，不使用任何網站或遊戲圖片）</summary>
+    private static readonly Lazy<Brush> MapBg = new(CreateWallBrush);
+
+    /// <summary>
+    /// 產生一張 256×256、可以無縫重複的米灰色牆面材質：
+    ///   底色 + 大片的明暗斑駁 + 細小顆粒 + 幾條淡淡的裂紋。
+    /// 用固定的亂數種子，所以每次畫出來都一樣。
+    /// </summary>
+    private static Brush CreateWallBrush()
+    {
+        const int size = 256;
+        var rng = new Random(20261123);
+
+        // 1. 低頻斑駁：在 8×8 的格子上隨機取值，再平滑內插（可無縫重複）
+        const int grid = 8;
+        var cells = new double[grid, grid];
+        for (var y = 0; y < grid; y++)
+            for (var x = 0; x < grid; x++)
+                cells[x, y] = rng.NextDouble();
+
+        double Blotch(int px, int py)
+        {
+            var gx = px / (double)size * grid;
+            var gy = py / (double)size * grid;
+            int x0 = (int)gx % grid, y0 = (int)gy % grid;
+            int x1 = (x0 + 1) % grid, y1 = (y0 + 1) % grid;
+            double fx = gx - Math.Floor(gx), fy = gy - Math.Floor(gy);
+            fx = fx * fx * (3 - 2 * fx);
+            fy = fy * fy * (3 - 2 * fy);
+            var top = cells[x0, y0] + (cells[x1, y0] - cells[x0, y0]) * fx;
+            var bottom = cells[x0, y1] + (cells[x1, y1] - cells[x0, y1]) * fx;
+            return top + (bottom - top) * fy;
+        }
+
+        // 2. 逐像素上色：米灰底色 + 斑駁 + 顆粒
+        var pixels = new byte[size * size * 4];
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var shade = (Blotch(x, y) - 0.5) * 22 + (rng.NextDouble() - 0.5) * 9;
+                var i = (y * size + x) * 4;
+                pixels[i + 0] = ClampByte(118 + shade); // B
+                pixels[i + 1] = ClampByte(130 + shade); // G
+                pixels[i + 2] = ClampByte(137 + shade); // R
+                pixels[i + 3] = 255;
+            }
+        }
+        var baseBitmap = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, pixels, size * 4);
+
+        // 3. 疊上幾條淡淡的裂紋（隨機彎曲的細線）
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawImage(baseBitmap, new Rect(0, 0, size, size));
+            var dark = new Pen(new SolidColorBrush(Color.FromArgb(70, 60, 56, 50)), 1.2);
+            var light = new Pen(new SolidColorBrush(Color.FromArgb(55, 210, 205, 195)), 1);
+            for (var c = 0; c < 7; c++)
+            {
+                var p = new Point(rng.Next(size), rng.Next(size));
+                var angle = rng.NextDouble() * Math.PI * 2;
+                var segments = rng.Next(3, 7);
+                for (var s = 0; s < segments; s++)
+                {
+                    angle += (rng.NextDouble() - 0.5) * 1.2;
+                    var len = 6 + rng.NextDouble() * 12;
+                    var next = new Point(p.X + Math.Cos(angle) * len, p.Y + Math.Sin(angle) * len);
+                    dc.DrawLine(dark, p, next);
+                    dc.DrawLine(light, new Point(p.X + 1, p.Y + 1), new Point(next.X + 1, next.Y + 1));
+                    p = next;
+                }
+            }
+        }
+        var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+
+        var brush = new ImageBrush(bitmap)
+        {
+            TileMode = TileMode.Tile,
+            Viewport = new Rect(0, 0, size, size),
+            ViewportUnits = BrushMappingMode.Absolute,
+            Stretch = Stretch.None,
+        };
+        brush.Freeze();
+        return brush;
+    }
+
+    private static byte ClampByte(double v) => (byte)Math.Clamp(Math.Round(v), 0, 255);
 
     private static T Frozen<T>(T freezable) where T : Freezable
     {
@@ -85,7 +173,7 @@ public sealed class CrosshairPreview : FrameworkElement
         dc.DrawRectangle(BackgroundMode switch
         {
             CrosshairBackground.Light => LightBg,
-            CrosshairBackground.Map => MapBg,
+            CrosshairBackground.Map => MapBg.Value,
             _ => DarkBg,
         }, null, new Rect(0, 0, w, h));
 

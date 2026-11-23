@@ -49,9 +49,9 @@ public sealed partial class CrosshairsViewModel : ObservableObject
     [ObservableProperty]
     private bool _showFavoritesOnly;
 
-    /// <summary>預覽背景（深色 / 淺色 / 地圖灰）</summary>
+    /// <summary>預覽背景（牆面 / 深色 / 淺色），預設是模擬遊戲牆面的材質</summary>
     [ObservableProperty]
-    private CrosshairBackground _backgroundMode = CrosshairBackground.Dark;
+    private CrosshairBackground _backgroundMode = CrosshairBackground.Map;
 
     /// <summary>畫面下方的提示（例如「已複製！…」）</summary>
     [ObservableProperty]

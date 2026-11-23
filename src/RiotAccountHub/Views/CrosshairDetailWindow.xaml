@@ -10,9 +10,9 @@
     <StackPanel Margin="28,22,28,22">
         <DockPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <RadioButton x:Name="BgMap" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="牆面" Checked="OnBackgroundChanged" />
                 <RadioButton x:Name="BgDark" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="深色" Checked="OnBackgroundChanged" />
-                <RadioButton x:Name="BgLight" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="淺色" Checked="OnBackgroundChanged" />
-                <RadioButton x:Name="BgMap" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="地圖灰" Checked="OnBackgroundChanged" Margin="0,0,0,8" />
+                <RadioButton x:Name="BgLight" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="淺色" Checked="OnBackgroundChanged" Margin="0,0,0,8" />
             </StackPanel>
             <StackPanel VerticalAlignment="Center" Margin="0,0,0,8">
                 <TextBlock x:Name="NameText" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -20,10 +20,10 @@
             </StackPanel>
         </DockPanel>
 
-        <!-- 大圖（放大 7 倍） -->
-        <Border CornerRadius="12" ClipToBounds="True" Height="280" Margin="0,8,0,0"
+        <!-- 大圖（放大 4 倍，接近在遊戲裡看到的感覺） -->
+        <Border CornerRadius="12" ClipToBounds="True" Height="300" Margin="0,8,0,0"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-            <helpers:CrosshairPreview x:Name="Preview" PixelScale="7" />
+            <helpers:CrosshairPreview x:Name="Preview" PixelScale="4" />
         </Border>
 
         <TextBlock Text="準星代碼" Style="{StaticResource FieldLabel}" Margin="0,16,0,6" />

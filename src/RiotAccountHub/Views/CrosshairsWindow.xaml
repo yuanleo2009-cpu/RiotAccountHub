@@ -44,9 +44,9 @@
         <DockPanel Grid.Row="1" Margin="0,18,0,14">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="預覽背景" FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,8" />
+                <RadioButton Style="{StaticResource ChipRadio}" GroupName="Bg" Content="牆面" IsChecked="{Binding IsMapBackground}" ToolTip="模擬遊戲裡的水泥牆" />
                 <RadioButton Style="{StaticResource ChipRadio}" GroupName="Bg" Content="深色" IsChecked="{Binding IsDarkBackground}" />
-                <RadioButton Style="{StaticResource ChipRadio}" GroupName="Bg" Content="淺色" IsChecked="{Binding IsLightBackground}" />
-                <RadioButton Style="{StaticResource ChipRadio}" GroupName="Bg" Content="地圖灰" IsChecked="{Binding IsMapBackground}" Margin="0,0,0,8" />
+                <RadioButton Style="{StaticResource ChipRadio}" GroupName="Bg" Content="淺色" IsChecked="{Binding IsLightBackground}" Margin="0,0,0,8" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Grid Width="240" Margin="0,0,16,8">
@@ -83,7 +83,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:CrosshairItemViewModel}">
-                            <Border x:Name="CardBorder" Style="{StaticResource Card}" Width="200" Padding="0" Margin="0,0,12,12"
+                            <Border x:Name="CardBorder" Style="{StaticResource Card}" Width="196" Padding="0" Margin="0,0,12,12"
                                     Cursor="Hand" ToolTip="點一下看大圖">
                                 <Border.InputBindings>
                                     <MouseBinding MouseAction="LeftClick"
@@ -92,8 +92,8 @@
                                 </Border.InputBindings>
                                 <StackPanel>
                                     <!-- 預覽圖（程式自己畫的，不使用網站圖片） -->
-                                    <Border CornerRadius="11,11,0,0" ClipToBounds="True" Height="120">
-                                        <helpers:CrosshairPreview Code="{Binding Code}" PixelScale="3"
+                                    <Border CornerRadius="11,11,0,0" ClipToBounds="True" Height="160">
+                                        <helpers:CrosshairPreview Code="{Binding Code}" PixelScale="2"
                                                                   BackgroundMode="{Binding DataContext.BackgroundMode, RelativeSource={RelativeSource AncestorType=Window}}" />
                                     </Border>
                                     <DockPanel Margin="14,10,10,12">

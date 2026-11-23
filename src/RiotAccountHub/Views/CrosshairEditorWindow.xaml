@@ -22,7 +22,7 @@
 
         <Border CornerRadius="10" ClipToBounds="True" Height="150" Margin="0,14,0,0"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-            <helpers:CrosshairPreview x:Name="Preview" PixelScale="5" />
+            <helpers:CrosshairPreview x:Name="Preview" PixelScale="3" />
         </Border>
         <TextBlock x:Name="StatusText" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
                    Foreground="{StaticResource TextMutedBrush}" />
