@@ -111,6 +111,7 @@ public sealed class RiotLocalApi
     ///     playerPresenceData.competitiveTier       段位編號（例如 24 = 神話 1）
     ///     playerPresenceData.leaderboardPosition   排行榜名次
     ///     playerPresenceData.accountLevel          帳號等級
+    ///     playerPresenceData.playerCardId          裝備中的卡面編號
     /// </summary>
     public async Task<CurrentRank?> GetCurrentRankAsync(CancellationToken ct = default)
     {
@@ -172,7 +173,8 @@ public sealed class RiotLocalApi
             if (tier is null) return null;
 
             var position = ReadInt("leaderboardPosition");
-            return new PresenceRank(tier.Value, position > 0 ? position : null, ReadInt("accountLevel"));
+            var cardId = data.TryGetProperty("playerCardId", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+            return new PresenceRank(tier.Value, position > 0 ? position : null, ReadInt("accountLevel"), cardId);
         }
         catch (Exception ex) when (ex is FormatException or JsonException)
         {
@@ -260,7 +262,7 @@ public sealed record RiotIdInfo(string GameName, string TagLine, string? Puuid)
 }
 
 /// <summary>從 presence 讀到的段位資料</summary>
-public sealed record PresenceRank(int CompetitiveTier, int? LeaderboardPosition, int? AccountLevel);
+public sealed record PresenceRank(int CompetitiveTier, int? LeaderboardPosition, int? AccountLevel, string? PlayerCardId = null);
 
 /// <summary>目前登入的是誰 + 他的段位</summary>
 public sealed record CurrentRank(RiotIdInfo Who, PresenceRank Rank);

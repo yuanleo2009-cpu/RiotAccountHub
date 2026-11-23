@@ -210,4 +210,33 @@ public sealed class RiotHelpersTests
     {
         Assert.Equal(expected, RiotAccountHub.Core.Models.RankNames.ToDisplay(tier));
     }
+
+    // ---------------- 卡面 ----------------
+
+    [Fact]
+    public void 卡面編號_從_presence_讀取()
+    {
+        var rank = RiotLocalApi.ParsePresencePrivate(ToBase64("""
+            { "playerPresenceData": { "competitiveTier": 24, "playerCardId": "65cbcfd7-4eeb-d935-ee1b-889c669a9db1" } }
+            """));
+        Assert.Equal("65cbcfd7-4eeb-d935-ee1b-889c669a9db1", rank!.PlayerCardId);
+    }
+
+    [Theory]
+    [InlineData("65cbcfd7-4eeb-d935-ee1b-889c669a9db1", true)]
+    [InlineData("../../Windows/system32", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void 卡面編號_只接受_GUID_格式(string? id, bool expected)
+    {
+        Assert.Equal(expected, RiotAccountHub.Core.Cards.PlayerCardCache.IsValidId(id));
+    }
+
+    [Fact]
+    public void 卡面圖片_只接受_PNG()
+    {
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0 };
+        Assert.True(RiotAccountHub.Core.Cards.PlayerCardCache.LooksLikePng(png));
+        Assert.False(RiotAccountHub.Core.Cards.PlayerCardCache.LooksLikePng(System.Text.Encoding.UTF8.GetBytes("<html>error</html>")));
+    }
 }

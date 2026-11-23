@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
 using RiotAccountHub.Core;
+using RiotAccountHub.Core.Cards;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Snapshots;
 using RiotAccountHub.Core.Storage;
@@ -61,7 +62,8 @@ public partial class App : Application
             riot,
             new AccountRepository(paths),
             new SettingsRepository(paths),
-            new DialogService());
+            new DialogService(),
+            new PlayerCardCache(paths.CardsDir));                     // 卡面圖片快取
 
         // ---- 4. 顯示主畫面 ----
         var window = new MainWindow { DataContext = viewModel };

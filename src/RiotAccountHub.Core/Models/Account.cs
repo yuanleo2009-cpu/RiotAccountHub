@@ -24,6 +24,9 @@ public sealed class Account
     /// </summary>
     public string? Puuid { get; set; }
 
+    /// <summary>這個帳號在遊戲裡裝備的卡面編號（用來顯示頭像與卡片背景）</summary>
+    public string? PlayerCardId { get; set; }
+
     /// <summary>最後一次看到的段位（還沒用啟動器開過遊戲就是 null）</summary>
     public RankInfo? Rank { get; set; }
 

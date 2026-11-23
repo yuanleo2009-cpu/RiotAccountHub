@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:RiotAccountHub.ViewModels"
+        xmlns:helpers="clr-namespace:RiotAccountHub.Helpers"
         Style="{StaticResource DarkWindowStyle}"
         Title="Riot Account Hub"
         Icon="pack://application:,,,/RiotAccountHub;component/Assets/app.ico"
@@ -13,6 +14,7 @@
     -->
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <helpers:ImagePathConverter x:Key="ImagePath" />
     </Window.Resources>
 
     <Grid>
@@ -71,26 +73,56 @@
                 <ItemsControl ItemsSource="{Binding Accounts}" Margin="0,0,6,0">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:AccountCardViewModel}">
-                            <Border x:Name="CardBorder" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <Border x:Name="CardBorder" Style="{StaticResource Card}" Padding="0" Margin="0,0,0,12">
                                 <Grid>
+                                <!-- 卡片背景：遊戲卡面的長條圖（有下載到才顯示） -->
+                                <Border CornerRadius="11" Opacity="0.8"
+                                        Visibility="{Binding HasBannerImage, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding BannerImagePath, Converter={StaticResource ImagePath}}"
+                                                    Stretch="UniformToFill" AlignmentX="Center" AlignmentY="Center" />
+                                    </Border.Background>
+                                </Border>
+                                <!-- 漸層遮罩：左邊比較暗，讓名字和段位看得清楚 -->
+                                <Border CornerRadius="11"
+                                        Visibility="{Binding HasBannerImage, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#F2171A21" Offset="0" />
+                                            <GradientStop Color="#A8171A21" Offset="0.45" />
+                                            <GradientStop Color="#78171A21" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+
+                                <Grid Margin="20,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- 頭像：名稱第一個字 -->
-                                    <Border Width="54" Height="54" CornerRadius="27" Margin="0,0,18,0" VerticalAlignment="Center">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                <GradientStop Color="#3A2024" Offset="0" />
-                                                <GradientStop Color="#24161A" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
-                                        <TextBlock Text="{Binding Initial}" FontSize="22" FontWeight="Bold"
-                                                   Foreground="{StaticResource AccentHoverBrush}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
+                                    <!-- 頭像：有卡面就顯示卡面，沒有就顯示名稱第一個字 -->
+                                    <Grid Width="56" Height="56" Margin="0,0,18,0" VerticalAlignment="Center">
+                                        <Border CornerRadius="12">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#3A2024" Offset="0" />
+                                                    <GradientStop Color="#24161A" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="{Binding Initial}" FontSize="22" FontWeight="Bold"
+                                                       Foreground="{StaticResource AccentHoverBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <Border CornerRadius="12" BorderThickness="1" BorderBrush="#40FFFFFF"
+                                                Visibility="{Binding HasAvatarImage, Converter={StaticResource BoolToVisibility}}">
+                                            <Border.Background>
+                                                <ImageBrush ImageSource="{Binding AvatarImagePath, Converter={StaticResource ImagePath}}"
+                                                            Stretch="UniformToFill" />
+                                            </Border.Background>
+                                        </Border>
+                                    </Grid>
 
                                     <!-- 帳號資訊 -->
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -181,6 +213,7 @@
                                             </Button>
                                         </StackPanel>
                                     </StackPanel>
+                                </Grid>
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>

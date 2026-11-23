@@ -1,5 +1,6 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using RiotAccountHub.Core.Cards;
 using RiotAccountHub.Core.Models;
 
 namespace RiotAccountHub.ViewModels;
@@ -10,11 +11,26 @@ namespace RiotAccountHub.ViewModels;
 /// </summary>
 public sealed partial class AccountCardViewModel : ObservableObject
 {
-    public AccountCardViewModel(Account model, bool hasSnapshot)
+    private readonly PlayerCardCache? _cards;
+
+    public AccountCardViewModel(Account model, bool hasSnapshot, PlayerCardCache? cards = null)
     {
         Model = model;
         _hasSnapshot = hasSnapshot;
+        _cards = cards;
     }
+
+    // ---------------- 卡面圖片 ----------------
+
+    /// <summary>頭像圖片（卡面正方形小圖）的本機路徑；還沒有就是 null，畫面會改顯示文字頭像</summary>
+    public string? AvatarImagePath => _cards?.GetSmallArt(Model.PlayerCardId);
+
+    /// <summary>卡片背景圖片（卡面長條圖）的本機路徑</summary>
+    public string? BannerImagePath => _cards?.GetWideArt(Model.PlayerCardId);
+
+    public bool HasAvatarImage => AvatarImagePath is not null;
+
+    public bool HasBannerImage => BannerImagePath is not null;
 
     /// <summary>真正的帳號資料</summary>
     public Account Model { get; }

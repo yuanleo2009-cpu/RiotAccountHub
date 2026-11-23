@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RiotAccountHub.Core;
+using RiotAccountHub.Core.Cards;
 using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Storage;
@@ -26,6 +27,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly AccountRepository _accountRepo;
     private readonly SettingsRepository _settingsRepo;
     private readonly IDialogService _dialogs;
+    private readonly PlayerCardCache? _cards;
 
     private AppSettings _settings = new();
 
@@ -40,7 +42,8 @@ public sealed partial class MainViewModel : ObservableObject
         RiotClientService riot,
         AccountRepository accountRepo,
         SettingsRepository settingsRepo,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        PlayerCardCache? cards = null)
     {
         _paths = paths;
         _switcher = switcher;
@@ -48,6 +51,7 @@ public sealed partial class MainViewModel : ObservableObject
         _accountRepo = accountRepo;
         _settingsRepo = settingsRepo;
         _dialogs = dialogs;
+        _cards = cards;
 
         Accounts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
@@ -98,7 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         foreach (var account in _accountRepo.Load())
         {
-            Accounts.Add(new AccountCardViewModel(account, _switcher.HasSnapshot(account.Id)));
+            Accounts.Add(new AccountCardViewModel(account, _switcher.HasSnapshot(account.Id), _cards));
         }
         if (_accountRepo.LoadWarning is { } warning)
         {
@@ -111,6 +115,19 @@ public sealed partial class MainViewModel : ObservableObject
         _rankTimer.Tick += async (_, _) => await UpdateRankAsync();
         _rankTimer.Start();
         _ = UpdateRankAsync();
+
+        // 之前下載失敗（例如當時沒網路）的卡面圖片，重新試一次
+        foreach (var card in Accounts) _ = LoadCardArtAsync(card);
+    }
+
+    /// <summary>
+    /// 下載這張卡片的卡面圖片（已經有了就不會再下載），完成後更新畫面。
+    /// 下載失敗也沒關係，畫面會繼續顯示文字頭像。
+    /// </summary>
+    private async Task LoadCardArtAsync(AccountCardViewModel card)
+    {
+        if (_cards is null || !PlayerCardCache.IsValidId(card.Model.PlayerCardId)) return;
+        if (await _cards.EnsureAsync(card.Model.PlayerCardId)) card.Refresh();
     }
 
     /// <summary>
@@ -145,6 +162,13 @@ public sealed partial class MainViewModel : ObservableObject
                 UpdatedUtc = DateTime.UtcNow,
             };
             model.Puuid ??= current.Who.Puuid; // 舊帳號順便補上 puuid
+            if (PlayerCardCache.IsValidId(rank.PlayerCardId) &&
+                !string.Equals(model.PlayerCardId, rank.PlayerCardId, StringComparison.OrdinalIgnoreCase))
+            {
+                model.PlayerCardId = rank.PlayerCardId; // 在遊戲裡換了卡面
+                changed = true;
+                _ = LoadCardArtAsync(card);
+            }
             card.Refresh();
 
             // 段位有變才馬上存檔；沒變的話最多 5 分鐘存一次「更新時間」
@@ -346,7 +370,7 @@ public sealed partial class MainViewModel : ObservableObject
         var account = new Account { SnapshotUpdatedUtc = DateTime.UtcNow, Puuid = detected?.Puuid };
         editor.ApplyTo(account);
         _switcher.SaveSnapshot(account.Id, captured);
-        Accounts.Add(new AccountCardViewModel(account, hasSnapshot: true));
+        Accounts.Add(new AccountCardViewModel(account, hasSnapshot: true, _cards));
         SaveAccounts();
         RefreshStatus();
         _dialogs.ShowInfo("新增完成", $"已新增「{account.RiotId}」！\n之後在卡片上按「啟動」就能直接切換到這個帳號。");

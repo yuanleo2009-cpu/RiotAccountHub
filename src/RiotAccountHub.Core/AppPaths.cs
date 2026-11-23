@@ -37,6 +37,9 @@ public sealed class AppPaths
     /// <summary>記錄檔資料夾（只記錄操作步驟，不會記錄任何登入資料）</summary>
     public string LogsDir => Path.Combine(DataRoot, "logs");
 
+    /// <summary>卡面圖片的快取資料夾（下載一次就存在這裡）</summary>
+    public string CardsDir => Path.Combine(DataRoot, "cards");
+
     /// <summary>某個帳號的快照檔案路徑</summary>
     public string SnapshotFile(string accountId) => Path.Combine(SnapshotsDir, accountId + ".bin");
 
