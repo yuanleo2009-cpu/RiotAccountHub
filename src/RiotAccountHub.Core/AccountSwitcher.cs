@@ -104,7 +104,10 @@ public sealed class AccountSwitcher
     /// </summary>
     public async Task<bool> AutoStartGameAsync(TimeSpan timeout, CancellationToken ct = default)
     {
+        const int maxAttempts = 3; // 「開始遊戲」最多只送 3 次，絕不會一直重送
+        var attempts = 0;
         var sw = System.Diagnostics.Stopwatch.StartNew();
+
         while (sw.Elapsed < timeout && !ct.IsCancellationRequested)
         {
             if (_riot.IsValorantRunning())
@@ -113,13 +116,33 @@ public sealed class AccountSwitcher
                 return true;
             }
 
-            if (await _api.IsLoggedInAsync(ct) && await _api.LaunchValorantAsync(ct))
+            // 先等 Riot Client 登入完成，再送「開始遊戲」
+            if (!await _api.IsLoggedInAsync(ct))
             {
-                AppLog.Info($"自動開始遊戲：已送出（等待 {sw.ElapsedMilliseconds} ms）");
-                return true;
+                await Task.Delay(1000, ct);
+                continue;
             }
 
-            await Task.Delay(1000, ct);
+            attempts++;
+            var result = await _api.LaunchValorantAsync(ct);
+            switch (result)
+            {
+                case LaunchRequestResult.Accepted:
+                    AppLog.Info($"自動開始遊戲：已送出（等待 {sw.ElapsedMilliseconds} ms）");
+                    return true;
+
+                case LaunchRequestResult.NoResponse:
+                    // 請求可能已經送到 Riot Client，只是它沒回應；為了不重複開遊戲，就此停止
+                    AppLog.Info("自動開始遊戲：已送出，但 Riot Client 沒有回應，不再重送。若遊戲沒開，請在 Riot 介面按開始");
+                    return false;
+
+                case LaunchRequestResult.Rejected when attempts >= maxAttempts:
+                    AppLog.Info("自動開始遊戲：Riot Client 拒絕了 3 次，請在 Riot 介面手動按開始");
+                    return false;
+            }
+
+            // Rejected：Riot Client 可能還在準備（例如更新中），等 3 秒再試
+            await Task.Delay(3000, ct);
         }
 
         AppLog.Info("自動開始遊戲：等待逾時（Riot Client 可能還沒登入），請在 Riot 介面手動按開始");

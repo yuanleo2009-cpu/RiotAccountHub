@@ -226,10 +226,16 @@ public sealed class RiotLocalApi
     /// 已在使用者電腦上驗證：POST /product-launcher/v1/products/valorant/patchlines/live
     /// 回 200（內容是遊戲工作階段編號），VALORANT 隨即啟動。
     /// </summary>
-    public async Task<bool> LaunchValorantAsync(CancellationToken ct = default)
+    public async Task<LaunchRequestResult> LaunchValorantAsync(CancellationToken ct = default)
     {
-        var (status, _) = await SendAsync(HttpMethod.Post, "/product-launcher/v1/products/valorant/patchlines/live", ct);
-        return status == HttpStatusCode.OK;
+        // Riot Client 有時要準備一陣子才回應，所以等久一點（20 秒），避免還沒回應就以為失敗而重送
+        var (status, _) = await SendAsync(HttpMethod.Post, "/product-launcher/v1/products/valorant/patchlines/live", ct, TimeSpan.FromSeconds(20));
+        return status switch
+        {
+            HttpStatusCode.OK => LaunchRequestResult.Accepted,
+            null => LaunchRequestResult.NoResponse,
+            _ => LaunchRequestResult.Rejected,
+        };
     }
 
     /// <summary>Riot Client 有沒有在執行（看 lockfile 存不存在）</summary>
@@ -275,7 +281,7 @@ public sealed class RiotLocalApi
         SendAsync(HttpMethod.Get, path, ct);
 
     /// <summary>送出請求到本機 Riot Client。回傳 （狀態碼， 內容）；連不上時狀態碼是 null。</summary>
-    private async Task<(HttpStatusCode? Status, string? Body)> SendAsync(HttpMethod method, string path, CancellationToken ct)
+    private async Task<(HttpStatusCode? Status, string? Body)> SendAsync(HttpMethod method, string path, CancellationToken ct, TimeSpan? timeout = null)
     {
         var lockfile = ReadLockfile();
         if (lockfile is null) return (null, null);
@@ -286,7 +292,7 @@ public sealed class RiotLocalApi
             ServerCertificateCustomValidationCallback = (request, _, _, _) =>
                 request.RequestUri is { Host: "127.0.0.1" },
         };
-        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(4) };
+        using var http = new HttpClient(handler) { Timeout = timeout ?? TimeSpan.FromSeconds(4) };
 
         var url = $"{lockfile.Protocol}://127.0.0.1:{lockfile.Port}{path}";
         using var req = new HttpRequestMessage(method, url);
@@ -325,6 +331,17 @@ public sealed record RiotIdInfo(string GameName, string TagLine, string? Puuid)
 public sealed record EntitlementTokens(string AccessToken, string EntitlementsJwt, string? Puuid)
 {
     public override string ToString() => "EntitlementTokens（內容已隱藏）";
+}
+
+/// <summary>「開始遊戲」請求的結果</summary>
+public enum LaunchRequestResult
+{
+    /// <summary>Riot Client 接受了（回 200）</summary>
+    Accepted,
+    /// <summary>Riot Client 回應錯誤（例如還沒準備好）</summary>
+    Rejected,
+    /// <summary>沒有回應或連不上（請求可能已經送到，不要再重送）</summary>
+    NoResponse,
 }
 
 /// <summary>從 presence 讀到的段位資料</summary>

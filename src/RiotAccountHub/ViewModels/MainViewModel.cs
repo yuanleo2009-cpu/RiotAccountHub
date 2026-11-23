@@ -38,6 +38,9 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _rankCheckRunning;
     private DateTime _lastRankSaveUtc = DateTime.MinValue;
 
+    // 目前正在等待的「自動開始遊戲」（同一時間只留一個）
+    private CancellationTokenSource? _autoStartCts;
+
     public MainViewModel(
         AppPaths paths,
         AccountSwitcher switcher,
@@ -581,11 +584,21 @@ public sealed partial class MainViewModel : ObservableObject
     private void StartAutoStartGame()
     {
         if (!AutoStartGame) return;
+
+        // 同一時間只留一個「自動開始遊戲」在等待（例如連按兩次啟動時，取消前一個）
+        _autoStartCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _autoStartCts = cts;
+
         _ = Task.Run(async () =>
         {
             try
             {
-                await _switcher.AutoStartGameAsync(TimeSpan.FromSeconds(90));
+                await _switcher.AutoStartGameAsync(TimeSpan.FromSeconds(90), cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // 被新的啟動取代了，正常
             }
             catch (Exception ex)
             {
