@@ -4,6 +4,7 @@ using Microsoft.Web.WebView2.Core;
 using RiotAccountHub.Core;
 using RiotAccountHub.Core.Web;
 using RiotAccountHub.Helpers;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.Views;
 
@@ -14,7 +15,7 @@ namespace RiotAccountHub.Views;
 ///   - 網站想開新視窗時，同一個網站就在這裡開，其他網站交給預設瀏覽器
 ///   - 電腦沒有 WebView2 執行環境時，改用預設瀏覽器開啟
 /// </summary>
-public partial class WebBrowserWindow : Window
+public partial class WebBrowserWindow : FluentWindow
 {
     private readonly Uri _startUri;
     private readonly Action? _extraAction;
@@ -22,16 +23,17 @@ public partial class WebBrowserWindow : Window
     public WebBrowserWindow(string url, string title, string hint, string? extraButtonText = null, Action? extraButtonAction = null)
     {
         InitializeComponent();
-        DarkTitleBar.Apply(this);
+        AppTheme.PrepareWindow(this);
         _startUri = new Uri(url);
         Title = title;
+        WindowTitleBar.Title = title;
         HintText.Text = hint;
 
         // 工具列上額外的按鈕（例如「我的準星」）
         _extraAction = extraButtonAction;
         if (extraButtonText is not null && extraButtonAction is not null)
         {
-            ExtraButtonText.Text = extraButtonText;
+            ExtraButton.Content = extraButtonText;
             ExtraButton.Visibility = Visibility.Visible;
         }
         Loaded += async (_, _) => await InitializeBrowserAsync();
@@ -53,7 +55,7 @@ public partial class WebBrowserWindow : Window
             await Browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(AdBlocker.HideAdsScript);
 
             Browser.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
-            Browser.CoreWebView2.NavigationCompleted += (_, _) => LoadingText.Visibility = Visibility.Collapsed;
+            Browser.CoreWebView2.NavigationCompleted += (_, _) => LoadingPanel.Visibility = Visibility.Collapsed;
             Browser.CoreWebView2.Navigate(_startUri.ToString());
         }
         catch (WebView2RuntimeNotFoundException ex)

@@ -18,8 +18,11 @@ namespace RiotAccountHub.ViewModels;
 /// </summary>
 public sealed partial class CrosshairsViewModel : ObservableObject
 {
-    /// <summary>複製後顯示的教學提示</summary>
-    public const string CopiedHint = "已複製！到 Valorant：設定 → 準星 → 匯入設定檔代碼，貼上後按匯入";
+    /// <summary>複製後跳出的提示：標題</summary>
+    public const string CopiedTitle = "已複製準星代碼";
+
+    /// <summary>複製後跳出的提示：教學</summary>
+    public const string CopiedHint = "到 Valorant：設定 → 準星 → 匯入設定檔代碼，貼上後按匯入。";
 
     public const string VcrdbUrl = "https://www.vcrdb.net/";
 
@@ -53,9 +56,14 @@ public sealed partial class CrosshairsViewModel : ObservableObject
     [ObservableProperty]
     private CrosshairBackground _backgroundMode = CrosshairBackground.Map;
 
-    /// <summary>畫面下方的提示（例如「已複製！…」）</summary>
-    [ObservableProperty]
-    private string _noticeText = "";
+    /// <summary>
+    /// 要跳出提示（Snackbar）時觸發，參數是（標題, 內容）。
+    /// 用事件而不是文字屬性：連續複製兩次一樣的東西，也會再跳一次提示。
+    /// </summary>
+    public event Action<string, string>? NoticeRaised;
+
+    /// <summary>在視窗底部跳出提示</summary>
+    public void Notify(string title, string message) => NoticeRaised?.Invoke(title, message);
 
     /// <summary>篩選後是不是沒有任何準星</summary>
     public bool IsEmpty => ItemsView.IsEmpty;
@@ -108,7 +116,7 @@ public sealed partial class CrosshairsViewModel : ObservableObject
     {
         if (TrySetClipboard(item.Code))
         {
-            NoticeText = CopiedHint;
+            Notify(CopiedTitle, CopiedHint);
             AppLog.Info("已複製準星代碼");
         }
     }
@@ -183,7 +191,7 @@ public sealed partial class CrosshairsViewModel : ObservableObject
         var saved = _library.Add(result.Value.Name, result.Value.Code);
         Items.Insert(0, new CrosshairItemViewModel(saved));
         RefreshView();
-        NoticeText = $"已加入「{saved.Name}」";
+        Notify("已加入我的準星", $"「{saved.Name}」已經存好了。");
     }
 
     private void Reload()

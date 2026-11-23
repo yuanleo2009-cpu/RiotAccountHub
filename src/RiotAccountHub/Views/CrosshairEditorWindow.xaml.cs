@@ -3,16 +3,17 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using RiotAccountHub.Core.Crosshairs;
 using RiotAccountHub.Helpers;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.Views;
 
 /// <summary>新增我的準星（輸入時即時預覽、檢查代碼格式）</summary>
-public partial class CrosshairEditorWindow : Window
+public partial class CrosshairEditorWindow : FluentWindow
 {
     public CrosshairEditorWindow(string title, string name, string code, CrosshairBackground background)
     {
         InitializeComponent();
-        DarkTitleBar.Apply(this);
+        AppTheme.PrepareWindow(this);
         TitleText.Text = title;
         Title = title;
         NameBox.Text = name;
@@ -37,29 +38,40 @@ public partial class CrosshairEditorWindow : Window
         var code = CodeBox.Text.Trim();
         if (code.Length == 0)
         {
-            SetStatus("貼上代碼後，這裡會顯示預覽。", warning: false);
+            SetStatus("貼上代碼後，上面會顯示預覽。", StatusKind.Hint);
             return;
         }
 
         var r = CrosshairCode.Parse(code);
         if (!r.IsValid)
         {
-            SetStatus(r.Error ?? "看不懂這個代碼。", warning: true);
+            SetStatus(r.Error ?? "看不懂這個代碼。", StatusKind.Problem);
         }
         else if (r.Warnings.Count > 0)
         {
-            SetStatus($"代碼可以使用；有 {r.Warnings.Count} 個欄位預覽圖還不支援，已略過（遊戲裡會正常顯示）。", warning: false);
+            SetStatus($"代碼可以使用；有 {r.Warnings.Count} 個欄位預覽圖還不支援，已略過（遊戲裡會正常顯示）。", StatusKind.Ok);
         }
         else
         {
-            SetStatus("代碼格式正確 ✓", warning: false);
+            SetStatus("代碼格式正確", StatusKind.Ok);
         }
     }
 
-    private void SetStatus(string text, bool warning)
+    private enum StatusKind { Hint, Ok, Problem }
+
+    /// <summary>代碼檢查結果：提示是灰色、正確是綠色勾、有問題是紅色</summary>
+    private void SetStatus(string text, StatusKind kind)
     {
         StatusText.Text = text;
-        StatusText.Foreground = (Brush)FindResource(warning ? "AccentHoverBrush" : "TextMutedBrush");
+        var (symbol, brush) = kind switch
+        {
+            StatusKind.Ok => (SymbolRegular.CheckmarkCircle16, "Brush.Success"),
+            StatusKind.Problem => (SymbolRegular.ErrorCircle16, "Brush.Accent"),
+            _ => (SymbolRegular.Info16, "Brush.TextMuted"),
+        };
+        StatusIcon.Symbol = symbol;
+        StatusIcon.Foreground = (Brush)FindResource(brush);
+        StatusText.Foreground = (Brush)FindResource(kind == StatusKind.Problem ? "Brush.Accent" : "Brush.TextSecondary");
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
@@ -67,7 +79,7 @@ public partial class CrosshairEditorWindow : Window
         var code = CodeBox.Text.Trim();
         if (!CrosshairCode.Parse(code).IsValid)
         {
-            SetStatus("請貼上正確的準星代碼（以「0;」開頭，例如 0;P;c;5;h;0;0l;4;0o;2）。", warning: true);
+            SetStatus("請貼上正確的準星代碼（以「0;」開頭，例如 0;P;c;5;h;0;0l;4;0o;2）。", StatusKind.Problem);
             CodeBox.Focus();
             return;
         }

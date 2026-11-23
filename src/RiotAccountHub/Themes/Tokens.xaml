@@ -125,6 +125,12 @@
     <sys:Double x:Key="Size.DialogIcon">40</sys:Double>   <!-- 對話框標題旁的圖示方塊 -->
     <sys:Double x:Key="Size.StepDot">24</sys:Double>      <!-- 登入步驟的數字圓點 -->
     <sys:Double x:Key="Size.ButtonMinWidth">96</sys:Double>
+    <sys:Double x:Key="Size.SearchBox">280</sys:Double>
+    <sys:Double x:Key="Size.TileMinWidth">232</sys:Double>     <!-- 準星卡片最少多寬 -->
+    <sys:Double x:Key="Size.TilePreview">184</sys:Double>      <!-- 準星卡片上的預覽高度 -->
+    <sys:Double x:Key="Size.DetailPreview">320</sys:Double>    <!-- 準星大圖預覽高度 -->
+    <sys:Double x:Key="Size.EditorPreview">168</sys:Double>    <!-- 新增準星時的預覽高度 -->
+    <sys:Double x:Key="Spacing.Tile">16</sys:Double>
 
     <!-- ===================== 間距（8 的倍數） ===================== -->
     <Thickness x:Key="Pad.Page">24,8,24,16</Thickness>        <!-- 頁面標題區 -->
@@ -143,6 +149,10 @@
     <Thickness x:Key="Pad.Input">8,0</Thickness>              <!-- 輸入框裡的文字 -->
     <Thickness x:Key="Pad.Steps">16</Thickness>               <!-- 登入步驟的框 -->
     <Thickness x:Key="Pad.Choice">16,0</Thickness>            <!-- 登入方式的選項 -->
+    <Thickness x:Key="Pad.TileFooter">16,8,8,8</Thickness>     <!-- 準星卡片下方的名稱列 -->
+    <Thickness x:Key="Pad.InputSearch">32,0,8,0</Thickness>   <!-- 搜尋框（左邊讓出放大鏡） -->
+    <Thickness x:Key="Pad.InputMulti">8</Thickness>           <!-- 多行輸入框 -->
+    <Thickness x:Key="Pad.Toolbar">16,8</Thickness>           <!-- 瀏覽器工具列 -->
 
     <Thickness x:Key="Gap.Right4">0,0,4,0</Thickness>
     <Thickness x:Key="Gap.Right8">0,0,8,0</Thickness>

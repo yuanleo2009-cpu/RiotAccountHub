@@ -1,61 +1,70 @@
-<Window x:Class="RiotAccountHub.Views.CrosshairDetailWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:helpers="clr-namespace:RiotAccountHub.Helpers"
-        Style="{StaticResource DarkWindowStyle}"
-        Title="準星預覽"
-        Width="560" SizeToContent="Height"
-        ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+<ui:FluentWindow x:Class="RiotAccountHub.Views.CrosshairDetailWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:helpers="clr-namespace:RiotAccountHub.Helpers"
+                 Style="{StaticResource Window.Dialog}"
+                 WindowStartupLocation="CenterOwner"
+                 Title="準星預覽"
+                 Width="600">
     <!-- 準星大圖預覽：可以切換背景、複製代碼、收藏、刪除（只有自己的準星能刪） -->
-    <StackPanel Margin="28,22,28,22">
-        <DockPanel>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <RadioButton x:Name="BgMap" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="牆面" Checked="OnBackgroundChanged" />
-                <RadioButton x:Name="BgDark" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="深色" Checked="OnBackgroundChanged" />
-                <RadioButton x:Name="BgLight" Style="{StaticResource ChipRadio}" GroupName="DetailBg" Content="淺色" Checked="OnBackgroundChanged" Margin="0,0,0,8" />
-            </StackPanel>
-            <StackPanel VerticalAlignment="Center" Margin="0,0,0,8">
-                <TextBlock x:Name="NameText" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="SourceText" FontSize="12" Margin="0,3,0,0" Foreground="{StaticResource TextMutedBrush}" />
-            </StackPanel>
-        </DockPanel>
+    <Grid>
+        <Border Background="{StaticResource Brush.BgTint}" />
 
-        <!-- 大圖（放大 4 倍，接近在遊戲裡看到的感覺） -->
-        <Border CornerRadius="12" ClipToBounds="True" Height="300" Margin="0,8,0,0"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-            <helpers:CrosshairPreview x:Name="Preview" PixelScale="4" />
-        </Border>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <TextBlock Text="準星代碼" Style="{StaticResource FieldLabel}" Margin="0,16,0,6" />
-        <TextBox x:Name="CodeBox" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" FontSize="13" />
+            <ui:TitleBar Grid.Row="0" ShowMinimize="False" ShowMaximize="False" />
 
-        <!-- 複製後的提示 -->
-        <Border x:Name="CopiedNotice" Visibility="Collapsed" Margin="0,12,0,0" CornerRadius="8" Padding="14,9"
-                Background="#263FB950" BorderBrush="#663FB950" BorderThickness="1">
-            <DockPanel>
-                <TextBlock Text="&#xE930;" FontFamily="{StaticResource IconFont}" FontSize="15"
-                           Foreground="{StaticResource SuccessBrush}" Margin="0,1,10,0" />
-                <TextBlock x:Name="CopiedText" TextWrapping="Wrap" FontWeight="SemiBold" />
-            </DockPanel>
-        </Border>
-
-        <DockPanel Margin="0,18,0,0">
-            <Button x:Name="DeleteButton" DockPanel.Dock="Left" Style="{StaticResource DangerGhostButton}" Click="OnDelete">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE74D;" Style="{StaticResource ButtonIcon}" />
-                    <TextBlock Text="刪除" />
-                </StackPanel>
-            </Button>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="FavoriteButton" Margin="0,0,10,0" Click="OnFavorite" MinWidth="96" />
-                <Button Content="關閉" MinWidth="80" Margin="0,0,10,0" IsCancel="True" Click="OnClose" />
-                <Button Style="{StaticResource PrimaryButton}" MinWidth="130" Click="OnCopy" IsDefault="True">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE8C8;" Style="{StaticResource ButtonIcon}" />
-                        <TextBlock Text="複製代碼" />
+            <StackPanel Grid.Row="1" Margin="{StaticResource Pad.Dialog}">
+                <!-- 名稱 + 預覽背景 -->
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <RadioButton x:Name="BgMap" Style="{StaticResource Choice.Small}" GroupName="DetailBg" Content="牆面" Checked="OnBackgroundChanged" />
+                        <RadioButton x:Name="BgDark" Style="{StaticResource Choice.Small}" GroupName="DetailBg" Content="深色" Checked="OnBackgroundChanged" />
+                        <RadioButton x:Name="BgLight" Style="{StaticResource Choice.Small}" GroupName="DetailBg" Content="淺色" Checked="OnBackgroundChanged" />
                     </StackPanel>
-                </Button>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="NameText" Style="{StaticResource Text.Title}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="SourceText" Style="{StaticResource Text.CaptionSecondary}" Foreground="{StaticResource Brush.TextMuted}"
+                                   Margin="{StaticResource Gap.Top4}" />
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- 大圖（放大 4 倍，接近在遊戲裡看到的感覺） -->
+                <Grid Margin="{StaticResource Gap.Top16}" helpers:Motion.Enter="True">
+                    <Border x:Name="PreviewMask" Background="Black" CornerRadius="{StaticResource Radius.Card}" />
+                    <helpers:CrosshairPreview x:Name="Preview" PixelScale="4" Height="{StaticResource Size.DetailPreview}">
+                        <helpers:CrosshairPreview.OpacityMask>
+                            <VisualBrush Visual="{Binding ElementName=PreviewMask}" />
+                        </helpers:CrosshairPreview.OpacityMask>
+                    </helpers:CrosshairPreview>
+                    <Border BorderBrush="{StaticResource Brush.Stroke}" BorderThickness="1" CornerRadius="{StaticResource Radius.Card}" />
+                </Grid>
+
+                <TextBlock Text="準星代碼" Style="{StaticResource Field.Label}" Margin="0,16,0,8" />
+                <TextBox x:Name="CodeBox" Style="{StaticResource Input.Code}" IsReadOnly="True" />
             </StackPanel>
-        </DockPanel>
-    </StackPanel>
-</Window>
+
+            <!-- 按鈕：左邊刪除，右邊收藏 / 關閉 / 複製 -->
+            <Border Grid.Row="2" Style="{StaticResource Dialog.Footer}">
+                <DockPanel>
+                    <ui:Button x:Name="DeleteButton" DockPanel.Dock="Left" Style="{StaticResource Btn.GhostDanger}"
+                               Icon="{ui:SymbolIcon Delete20}" Content="刪除" Click="OnDelete" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <ui:Button x:Name="FavoriteButton" Style="{StaticResource Btn.DialogSecondary}" Click="OnFavorite" />
+                        <ui:Button Content="關閉" Style="{StaticResource Btn.DialogSecondary}" IsCancel="True" Click="OnClose" />
+                        <ui:Button Style="{StaticResource Btn.DialogPrimary}" Icon="{ui:SymbolIcon Copy20}" Content="複製代碼"
+                                   IsDefault="True" Click="OnCopy" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <ui:SnackbarPresenter x:Name="Snackbars" Grid.Row="0" Grid.RowSpan="3" VerticalAlignment="Bottom" Margin="16,0,16,80" />
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

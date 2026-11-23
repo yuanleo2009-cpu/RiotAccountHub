@@ -12,8 +12,6 @@
                 <ui:ControlsDictionary />
                 <!-- 本程式的樣式：Controls.xaml 裡面會再載入 Tokens.xaml（設計代碼） -->
                 <ResourceDictionary Source="Themes/Controls.xaml" />
-                <!-- 舊版樣式：還沒改版的視窗暫時還在用 -->
-                <ResourceDictionary Source="Themes/Dark.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

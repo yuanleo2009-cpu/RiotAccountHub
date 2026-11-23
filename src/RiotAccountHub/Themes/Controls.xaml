@@ -283,6 +283,16 @@
         <Setter Property="FontSize" Value="{StaticResource Font.Caption}" />
     </Style>
 
+    <!-- 透明的危險按鈕（例如「刪除」）：滑過時變紅 -->
+    <Style x:Key="Btn.GhostDanger" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource Btn.Ghost}">
+        <Setter Property="MouseOverBackground" Value="{StaticResource Brush.AccentSoft}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- 只有圖示的小按鈕（滑鼠移上去會顯示說明） -->
     <Style x:Key="Btn.Icon" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource Btn.Ghost}">
         <Setter Property="Height" Value="{StaticResource Size.ButtonSmall}" />
@@ -599,6 +609,137 @@
         </Setter>
     </Style>
 
+    <!-- 小一號的單選選項（例如預覽背景：牆面 / 深色 / 淺色） -->
+    <Style x:Key="Choice.Small" TargetType="RadioButton" BasedOn="{StaticResource Choice}">
+        <Setter Property="Height" Value="{StaticResource Size.ButtonSmall}" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Caption}" />
+        <Setter Property="Margin" Value="{StaticResource Gap.Left8}" />
+    </Style>
+
+    <!-- 多行、等寬字的輸入框（準星代碼） -->
+    <Style x:Key="Input.Code" TargetType="TextBox" BasedOn="{StaticResource Input}">
+        <Setter Property="Height" Value="Auto" />
+        <Setter Property="MinHeight" Value="{StaticResource Size.Button}" />
+        <Setter Property="Padding" Value="{StaticResource Pad.InputMulti}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Caption}" />
+    </Style>
+
+    <!--
+      圖片卡片（準星網格用）：上面放圖、下面放名稱。
+        - 滑過：往上浮 2px、出現陰影、邊框變淡紅（200 毫秒）
+        - 按下：縮小到 98%
+    -->
+    <Style x:Key="Card.Tile" TargetType="ContentControl">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform ScaleX="1" ScaleY="1" />
+                                <TranslateTransform Y="0" />
+                            </TransformGroup>
+                        </Grid.RenderTransform>
+                        <Border x:Name="Shadow" Opacity="0" Background="{StaticResource Brush.Surface1}"
+                                CornerRadius="{StaticResource Radius.Card}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="24" ShadowDepth="8" Direction="270" Color="Black" Opacity="0.6" />
+                            </Border.Effect>
+                        </Border>
+                        <Border x:Name="Mask" Background="{StaticResource Brush.Surface1}" CornerRadius="{StaticResource Radius.Card}" />
+                        <ContentPresenter>
+                            <ContentPresenter.OpacityMask>
+                                <VisualBrush Visual="{Binding ElementName=Mask}" />
+                            </ContentPresenter.OpacityMask>
+                        </ContentPresenter>
+                        <Border BorderBrush="{StaticResource Brush.Stroke}" BorderThickness="1" IsHitTestVisible="False"
+                                CornerRadius="{StaticResource Radius.Card}" />
+                        <Border x:Name="HoverStroke" BorderBrush="{StaticResource Brush.AccentStroke}" BorderThickness="1"
+                                Opacity="0" IsHitTestVisible="False" CornerRadius="{StaticResource Radius.Card}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                                                         To="-2" Duration="{StaticResource Motion.Normal}">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="Shadow" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Normal}" />
+                                        <DoubleAnimation Storyboard.TargetName="HoverStroke" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Normal}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                                                         To="0" Duration="{StaticResource Motion.Slow}">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="Shadow" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Slow}" />
+                                        <DoubleAnimation Storyboard.TargetName="HoverStroke" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Slow}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <EventTrigger RoutedEvent="PreviewMouseLeftButtonDown">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="Root"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                     To="0.98" Duration="0:0:0.08" />
+                                    <DoubleAnimation Storyboard.TargetName="Root"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                     To="0.98" Duration="0:0:0.08" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="PreviewMouseLeftButtonUp">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="Root"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                     To="1" Duration="{StaticResource Motion.Normal}" />
+                                    <DoubleAnimation Storyboard.TargetName="Root"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                     To="1" Duration="{StaticResource Motion.Normal}" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="Root"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                     To="1" Duration="{StaticResource Motion.Normal}" />
+                                    <DoubleAnimation Storyboard.TargetName="Root"
+                                                     Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                     To="1" Duration="{StaticResource Motion.Normal}" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- 錯誤提示（輸入不正確時） -->
     <Style x:Key="Notice.Error" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource Brush.AccentSoft}" />
@@ -615,6 +756,74 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Control}" />
         <Setter Property="Padding" Value="{StaticResource Pad.Notice}" />
+    </Style>
+
+    <!-- ===================== 滑鼠提示（ToolTip） ===================== -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Caption}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{StaticResource Brush.Surface3}" BorderBrush="{StaticResource Brush.StrokeStrong}"
+                            BorderThickness="1" CornerRadius="{StaticResource Radius.Control}" Padding="{StaticResource Pad.Tag}">
+                        <ContentPresenter Margin="0,4" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================== 細捲軸 ===================== -->
+    <Style x:Key="SlimThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bd" CornerRadius="{StaticResource Radius.Control}" Background="{StaticResource Brush.StrokeStrong}" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.TextMuted}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Width" Value="8" />
+        <Setter Property="MinWidth" Value="8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Track x:Name="PART_Track" IsDirectionReversed="True">
+                        <Track.Thumb>
+                            <Thumb Style="{StaticResource SlimThumb}" />
+                        </Track.Thumb>
+                    </Track>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Height" Value="8" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource SlimThumb}" />
+                                </Track.Thumb>
+                            </Track>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

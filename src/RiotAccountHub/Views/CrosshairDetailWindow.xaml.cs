@@ -1,11 +1,12 @@
 using System.Windows;
 using RiotAccountHub.Helpers;
 using RiotAccountHub.ViewModels;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.Views;
 
 /// <summary>準星大圖預覽</summary>
-public partial class CrosshairDetailWindow : Window
+public partial class CrosshairDetailWindow : FluentWindow
 {
     private readonly CrosshairItemViewModel _item;
     private readonly CrosshairsViewModel _owner;
@@ -13,16 +14,17 @@ public partial class CrosshairDetailWindow : Window
     public CrosshairDetailWindow(CrosshairItemViewModel item, CrosshairsViewModel owner)
     {
         InitializeComponent();
-        DarkTitleBar.Apply(this);
+        AppTheme.PrepareWindow(this);
         _item = item;
         _owner = owner;
 
+        Title = "準星預覽 · " + item.Name;
         NameText.Text = item.Name;
         SourceText.Text = item.SourceText;
         CodeBox.Text = item.Code;
         Preview.Code = item.Code;
         DeleteButton.Visibility = item.IsExample ? Visibility.Collapsed : Visibility.Visible;
-        UpdateFavoriteText();
+        UpdateFavoriteButton();
 
         // 背景跟著主視窗目前的選擇
         Preview.BackgroundMode = owner.BackgroundMode;
@@ -47,15 +49,13 @@ public partial class CrosshairDetailWindow : Window
     private void OnCopy(object sender, RoutedEventArgs e)
     {
         if (!_owner.TrySetClipboard(_item.Code)) return;
-        CopiedText.Text = CrosshairsViewModel.CopiedHint;
-        CopiedNotice.Visibility = Visibility.Visible;
-        _owner.NoticeText = CrosshairsViewModel.CopiedHint;
+        Toast.Success(Snackbars, CrosshairsViewModel.CopiedTitle, CrosshairsViewModel.CopiedHint);
     }
 
     private void OnFavorite(object sender, RoutedEventArgs e)
     {
         _owner.ToggleFavoriteCommand.Execute(_item);
-        UpdateFavoriteText();
+        UpdateFavoriteButton();
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
@@ -67,6 +67,18 @@ public partial class CrosshairDetailWindow : Window
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
-    private void UpdateFavoriteText() =>
-        FavoriteButton.Content = _item.IsFavorite ? "★ 已收藏" : "☆ 收藏";
+    /// <summary>收藏按鈕：已收藏是紅色實心星星</summary>
+    private void UpdateFavoriteButton()
+    {
+        FavoriteButton.Content = _item.IsFavorite ? "已收藏" : "收藏";
+        FavoriteButton.Icon = new SymbolIcon(SymbolRegular.Star20) { Filled = _item.IsFavorite };
+        if (_item.IsFavorite)
+        {
+            FavoriteButton.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Accent");
+        }
+        else
+        {
+            FavoriteButton.ClearValue(ForegroundProperty);
+        }
+    }
 }
