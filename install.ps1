@@ -70,6 +70,10 @@ if ($Desktop) {
 }
 
 Write-Host ''
+# 讓 Windows 重新整理圖示快取：換了新 logo 之後，工作列和捷徑才會顯示新的圖示
+# （Windows 會把舊圖示存起來，沒有重新整理的話可能一直顯示舊的）
+try { Start-Process -FilePath (Join-Path $env:WINDIR 'System32\ie4uinit.exe') -ArgumentList '-show' -Wait -WindowStyle Hidden } catch { }
+
 Write-Host '安裝完成！' -ForegroundColor Green
 Write-Host '現在可以按 Windows 鍵，輸入「Riot Account Hub」直接開啟。'
 Write-Host '想固定在工作列：在搜尋結果上按右鍵 →「釘選到工作列」。'
