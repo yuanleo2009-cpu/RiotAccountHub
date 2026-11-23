@@ -82,6 +82,61 @@ public sealed class RiotLocalApi
         return ApiLoginStatus.LoggedIn(persist);
     }
 
+    /// <summary>
+    /// 取得目前登入帳號的 Riot ID（遊戲名稱 + Tag）。
+    /// 取不到（沒登入、Riot Client 還在載入、Riot 改了 API）就回傳 null，不會丟出錯誤。
+    ///
+    /// 在使用者電腦上實際驗證過的端點：
+    ///   GET /chat/v1/session                  → game_name、game_tag、puuid
+    ///   GET /player-account/aliases/v1/active → game_name、tag_line（備用）
+    /// </summary>
+    public async Task<RiotIdInfo?> GetRiotIdAsync(CancellationToken ct = default)
+    {
+        // 第一優先：聊天服務的工作階段，資料最完整（有 puuid）
+        var (status, json) = await GetAsync("/chat/v1/session", ct);
+        var fromChat = status == HttpStatusCode.OK && json is not null ? ParseChatSession(json) : null;
+        if (fromChat is not null) return fromChat;
+
+        // 備用：帳號別名
+        (status, json) = await GetAsync("/player-account/aliases/v1/active", ct);
+        return status == HttpStatusCode.OK && json is not null ? ParseActiveAlias(json) : null;
+    }
+
+    /// <summary>解析 /chat/v1/session 的回應</summary>
+    internal static RiotIdInfo? ParseChatSession(string json) =>
+        ParseRiotId(json, "game_name", "game_tag", "puuid");
+
+    /// <summary>解析 /player-account/aliases/v1/active 的回應</summary>
+    internal static RiotIdInfo? ParseActiveAlias(string json) =>
+        ParseRiotId(json, "game_name", "tag_line", puuidKey: null);
+
+    private static RiotIdInfo? ParseRiotId(string json, string nameKey, string tagKey, string? puuidKey)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            string? Read(string? key) =>
+                key is not null &&
+                doc.RootElement.TryGetProperty(key, out var v) &&
+                v.ValueKind == JsonValueKind.String
+                    ? v.GetString()?.Trim()
+                    : null;
+
+            var name = Read(nameKey);
+            var tag = Read(tagKey);
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(tag)) return null;
+
+            var puuid = Read(puuidKey);
+            return new RiotIdInfo(name, tag, string.IsNullOrEmpty(puuid) ? null : puuid);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>送出 GET 請求。回傳 （狀態碼， 內容）；連不上時狀態碼是 null。</summary>
     private async Task<(HttpStatusCode? Status, string? Body)> GetAsync(string path, CancellationToken ct)
     {
@@ -114,6 +169,16 @@ public sealed class RiotLocalApi
             return (null, null);
         }
     }
+}
+
+/// <summary>
+/// 從 Riot Client 讀到的帳號身分。
+/// Puuid 是 Riot 給每個帳號的固定編號（改 Riot ID 也不會變），
+/// 用來判斷「是不是同一個帳號」。它不是密碼，不能拿來登入。
+/// </summary>
+public sealed record RiotIdInfo(string GameName, string TagLine, string? Puuid)
+{
+    public string RiotId => $"{GameName}#{TagLine}";
 }
 
 /// <summary>本機 API 回報的登入狀態</summary>

@@ -18,6 +18,12 @@ public sealed class Account
     /// <summary>Tag（Riot ID 的 # 後面，不含 #）</summary>
     public string TagLine { get; set; } = "";
 
+    /// <summary>
+    /// Riot 給這個帳號的固定編號（自動抓到時才有）。
+    /// 改 Riot ID 也不會變，用來確認「重新登入的是不是同一個帳號」。不是密碼。
+    /// </summary>
+    public string? Puuid { get; set; }
+
     /// <summary>登入方式（只是標籤，方便使用者辨認）</summary>
     public LoginMethod LoginMethod { get; set; } = LoginMethod.RiotAccount;
 

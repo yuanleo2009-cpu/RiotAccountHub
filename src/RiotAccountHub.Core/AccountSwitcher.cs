@@ -109,6 +109,27 @@ public sealed class AccountSwitcher
     public Task<ApiLoginStatus> CheckLoginAsync() => _api.GetLoginStatusAsync();
 
     /// <summary>
+    /// 自動抓目前登入帳號的 Riot ID。
+    /// 剛登入時 Riot Client 可能還在載入，所以最多試 4 次（約 4 秒）。
+    /// 抓不到就回傳 null，讓使用者手動輸入，不會讓流程失敗。
+    /// </summary>
+    public async Task<RiotIdInfo?> DetectRiotIdAsync()
+    {
+        for (var attempt = 1; attempt <= 4; attempt++)
+        {
+            var info = await _api.GetRiotIdAsync();
+            if (info is not null)
+            {
+                AppLog.Info("已自動取得 Riot ID");
+                return info;
+            }
+            if (attempt < 4) await Task.Delay(1000);
+        }
+        AppLog.Info("無法自動取得 Riot ID，改用手動輸入");
+        return null;
+    }
+
+    /// <summary>
     /// 登入流程第 3 步：關閉 Riot Client → 檢查保持登入 → 把登入狀態加密擷取下來。
     /// 這一步還不會存檔，由呼叫的人決定要存成哪個帳號。
     /// </summary>

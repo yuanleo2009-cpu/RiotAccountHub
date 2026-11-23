@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using RiotAccountHub.Core.Models;
+using RiotAccountHub.Core.Riot;
 
 namespace RiotAccountHub.ViewModels;
 
@@ -17,10 +18,20 @@ public sealed partial class AccountEditViewModel : ObservableObject
             .ToList();
     }
 
-    /// <summary>新增帳號用（登入完成後填資料）</summary>
-    public static AccountEditViewModel ForNew()
+    /// <summary>
+    /// 新增帳號用（登入完成後填資料）。
+    /// detected 是從 Riot Client 自動抓到的 Riot ID；抓不到就是 null，讓使用者自己輸入。
+    /// </summary>
+    public static AccountEditViewModel ForNew(RiotIdInfo? detected)
     {
-        var vm = new AccountEditViewModel("新增帳號", "登入狀態已加密儲存！最後請填寫這個帳號的資料。");
+        var headline = detected is null
+            ? "登入狀態已加密儲存！沒辦法自動取得 Riot ID，請手動填寫這個帳號的資料。"
+            : "登入狀態已加密儲存！Riot ID 已經自動帶入，選好登入方式後按「儲存」就完成了。";
+        var vm = new AccountEditViewModel("新增帳號", headline)
+        {
+            GameName = detected?.GameName ?? "",
+            TagLine = detected?.TagLine ?? "",
+        };
         vm.Select(LoginMethod.Google);
         return vm;
     }

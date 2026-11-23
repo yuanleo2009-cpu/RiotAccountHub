@@ -177,6 +177,7 @@ public sealed partial class MainViewModel : ObservableObject
         // ---- 步驟 2：等使用者登入 ----
         var headline = existing is null ? "請在 Riot Client 登入要新增的帳號" : $"請在 Riot Client 登入「{existing.RiotId}」";
         ApiLoginStatus status;
+        RiotIdInfo? detected;
         while (true)
         {
             if (!_dialogs.ShowLoginPrompt(headline))
@@ -197,6 +198,22 @@ public sealed partial class MainViewModel : ObservableObject
                     "Riot Client 回報這次登入「沒有」勾選保持登入，這樣存下來的快照之後無法自動登入。\n\n" +
                     "建議做法：在 Riot Client 右上角的個人選單登出，重新登入時記得勾選「保持登入」，再回來按「我登入好了」。",
                     "仍然儲存", "我去重新登入", warning: true))
+            {
+                continue;
+            }
+
+            // 自動抓 Riot ID（抓不到也沒關係，之後讓使用者手動輸入）
+            BeginBusy("正在讀取帳號的 Riot ID…");
+            detected = await _switcher.DetectRiotIdAsync();
+            EndBusy();
+
+            // 重新登入時，確認登入的是不是這張卡片的帳號
+            if (existing is not null && detected is not null && !IsSameAccount(existing.Model, detected) &&
+                !_dialogs.Confirm(
+                    "登入的帳號不一樣",
+                    $"你在 Riot Client 登入的是「{detected.RiotId}」，\n但這張卡片是「{existing.RiotId}」。\n\n" +
+                    $"如果繼續，這張卡片會改成「{detected.RiotId}」。",
+                    "改存成這個帳號", "我去換帳號登入", warning: true))
             {
                 continue;
             }
@@ -221,10 +238,31 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         // ---- 步驟 4：存檔 ----
+
+        // 新增帳號時，如果這個帳號其實已經在清單裡，就問要不要直接更新它
+        if (existing is null && detected is not null)
+        {
+            var duplicate = Accounts.FirstOrDefault(a => IsSameAccount(a.Model, detected));
+            if (duplicate is not null &&
+                _dialogs.Confirm("這個帳號已經存在",
+                    $"清單裡已經有「{duplicate.RiotId}」了。\n\n要直接更新它的登入狀態嗎？",
+                    "更新它", "另外新增一張"))
+            {
+                existing = duplicate;
+            }
+        }
+
         if (existing is not null)
         {
             _switcher.SaveSnapshot(existing.Model.Id, captured);
             existing.Model.SnapshotUpdatedUtc = DateTime.UtcNow;
+            if (detected is not null)
+            {
+                // 順便更新名稱（例如在 Riot 改過 Riot ID）
+                existing.Model.GameName = detected.GameName;
+                existing.Model.TagLine = detected.TagLine;
+                existing.Model.Puuid = detected.Puuid ?? existing.Model.Puuid;
+            }
             SaveAccounts();
             RefreshStatus();
             existing.Refresh();
@@ -232,7 +270,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var editor = AccountEditViewModel.ForNew();
+        var editor = AccountEditViewModel.ForNew(detected);
         while (!_dialogs.ShowAccountEditor(editor))
         {
             if (_dialogs.Confirm("放棄這個帳號？", "確定不要儲存這個帳號嗎？\n剛剛的登入狀態會被丟棄，並放回開始前的登入狀態。", "放棄", "繼續填寫", danger: true))
@@ -242,13 +280,26 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
-        var account = new Account { SnapshotUpdatedUtc = DateTime.UtcNow };
+        var account = new Account { SnapshotUpdatedUtc = DateTime.UtcNow, Puuid = detected?.Puuid };
         editor.ApplyTo(account);
         _switcher.SaveSnapshot(account.Id, captured);
         Accounts.Add(new AccountCardViewModel(account, hasSnapshot: true));
         SaveAccounts();
         RefreshStatus();
         _dialogs.ShowInfo("新增完成", $"已新增「{account.RiotId}」！\n之後在卡片上按「啟動」就能直接切換到這個帳號。");
+    }
+
+    /// <summary>
+    /// 判斷是不是同一個帳號：兩邊都有 puuid 就比 puuid（改名也認得出來），
+    /// 不然就比 Riot ID（不分大小寫）。
+    /// </summary>
+    private static bool IsSameAccount(Account account, RiotIdInfo detected)
+    {
+        if (!string.IsNullOrEmpty(account.Puuid) && !string.IsNullOrEmpty(detected.Puuid))
+        {
+            return string.Equals(account.Puuid, detected.Puuid, StringComparison.OrdinalIgnoreCase);
+        }
+        return string.Equals(account.RiotId, detected.RiotId, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>取消登入流程：放回開始前的狀態</summary>

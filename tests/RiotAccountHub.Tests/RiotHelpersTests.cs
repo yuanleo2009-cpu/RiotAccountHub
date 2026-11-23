@@ -107,4 +107,39 @@ public sealed class RiotHelpersTests
             Assert.DoesNotContain(RiotClientService.ProcessesToClose, p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase));
         }
     }
+
+    [Fact]
+    public void RiotID_從聊天工作階段讀取()
+    {
+        // 欄位名稱與使用者電腦上 /chat/v1/session 實際回傳的一樣（值是假的）
+        const string json = """
+            { "federated": false, "game_name": "夜行者", "game_tag": "TW1", "loaded": true,
+              "name": "夜行者", "pid": "fake@ap1.pvp.net", "puuid": "11111111-2222-3333-4444-555555555555",
+              "region": "ap1", "resource": "RC-1", "state": "connected" }
+            """;
+        var info = RiotLocalApi.ParseChatSession(json);
+        Assert.NotNull(info);
+        Assert.Equal("夜行者#TW1", info!.RiotId);
+        Assert.Equal("11111111-2222-3333-4444-555555555555", info.Puuid);
+    }
+
+    [Fact]
+    public void RiotID_從帳號別名讀取()
+    {
+        // 欄位名稱與 /player-account/aliases/v1/active 實際回傳的一樣
+        const string json = """{ "active": true, "created_datetime": 0, "game_name": "SilentAim", "summoner": false, "tag_line": "0420" }""";
+        var info = RiotLocalApi.ParseActiveAlias(json);
+        Assert.NotNull(info);
+        Assert.Equal("SilentAim#0420", info!.RiotId);
+        Assert.Null(info.Puuid);
+    }
+
+    [Fact]
+    public void RiotID_資料不完整時回傳_null_讓使用者手動輸入()
+    {
+        Assert.Null(RiotLocalApi.ParseChatSession("""{ "game_name": "", "game_tag": "", "loaded": false }"""));
+        Assert.Null(RiotLocalApi.ParseChatSession("""{ "game_name": "OnlyName" }"""));
+        Assert.Null(RiotLocalApi.ParseActiveAlias("不是 JSON"));
+        Assert.Null(RiotLocalApi.ParseActiveAlias("[]"));
+    }
 }
