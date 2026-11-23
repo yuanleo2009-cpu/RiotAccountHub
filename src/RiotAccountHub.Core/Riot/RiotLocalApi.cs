@@ -102,6 +102,84 @@ public sealed class RiotLocalApi
         return status == HttpStatusCode.OK && json is not null ? ParseActiveAlias(json) : null;
     }
 
+    /// <summary>
+    /// 讀取目前登入帳號的段位（VALORANT 要在執行中）。讀不到就回傳 null，不會丟出錯誤。
+    ///
+    /// 在使用者電腦上實際驗證過（VALORANT release-13.10）：
+    ///   GET /chat/v4/presences → presences[] 裡找 puuid 是自己、product 是 "valorant" 的那筆，
+    ///   它的 private 欄位是 base64 編碼的 JSON，裡面有：
+    ///     playerPresenceData.competitiveTier       段位編號（例如 24 = 神話 1）
+    ///     playerPresenceData.leaderboardPosition   排行榜名次
+    ///     playerPresenceData.accountLevel          帳號等級
+    /// </summary>
+    public async Task<CurrentRank?> GetCurrentRankAsync(CancellationToken ct = default)
+    {
+        var me = await GetRiotIdAsync(ct);
+        if (me?.Puuid is null) return null;
+
+        var (status, json) = await GetAsync("/chat/v4/presences", ct);
+        if (status != HttpStatusCode.OK || json is null) return null;
+
+        var rank = ParseOwnRank(json, me.Puuid);
+        return rank is null ? null : new CurrentRank(me, rank);
+    }
+
+    /// <summary>從 /chat/v4/presences 的回應裡找出自己的段位</summary>
+    internal static PresenceRank? ParseOwnRank(string presencesJson, string puuid)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(presencesJson);
+            if (!doc.RootElement.TryGetProperty("presences", out var list) || list.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            foreach (var p in list.EnumerateArray())
+            {
+                if (p.ValueKind != JsonValueKind.Object) continue;
+                if (!p.TryGetProperty("puuid", out var id) || !string.Equals(id.GetString(), puuid, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!p.TryGetProperty("product", out var product) || product.GetString() != "valorant") continue;
+                if (!p.TryGetProperty("private", out var priv) || priv.ValueKind != JsonValueKind.String) continue;
+
+                var rank = ParsePresencePrivate(priv.GetString()!);
+                if (rank is not null) return rank;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        return null;
+    }
+
+    /// <summary>解碼 presence 的 private 欄位（base64 → JSON），取出段位</summary>
+    internal static PresenceRank? ParsePresencePrivate(string base64)
+    {
+        try
+        {
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+
+            // 目前的格式：資料在 playerPresenceData 底下；舊版格式直接放在最外層
+            var data = root.TryGetProperty("playerPresenceData", out var ppd) && ppd.ValueKind == JsonValueKind.Object ? ppd : root;
+
+            int? ReadInt(string key) =>
+                data.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : null;
+
+            var tier = ReadInt("competitiveTier");
+            if (tier is null) return null;
+
+            var position = ReadInt("leaderboardPosition");
+            return new PresenceRank(tier.Value, position > 0 ? position : null, ReadInt("accountLevel"));
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>解析 /chat/v1/session 的回應</summary>
     internal static RiotIdInfo? ParseChatSession(string json) =>
         ParseRiotId(json, "game_name", "game_tag", "puuid");
@@ -180,6 +258,12 @@ public sealed record RiotIdInfo(string GameName, string TagLine, string? Puuid)
 {
     public string RiotId => $"{GameName}#{TagLine}";
 }
+
+/// <summary>從 presence 讀到的段位資料</summary>
+public sealed record PresenceRank(int CompetitiveTier, int? LeaderboardPosition, int? AccountLevel);
+
+/// <summary>目前登入的是誰 + 他的段位</summary>
+public sealed record CurrentRank(RiotIdInfo Who, PresenceRank Rank);
 
 /// <summary>本機 API 回報的登入狀態</summary>
 public sealed record ApiLoginStatus(ApiLoginState State, bool? PersistLogin)

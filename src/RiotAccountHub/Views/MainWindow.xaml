@@ -102,6 +102,16 @@
 
                                         <!-- 標籤：登入方式、備註、警告 -->
                                         <WrapPanel Margin="0,8,0,0">
+                                            <!-- 段位（自己設計的顏色標籤，不使用官方圖示） -->
+                                            <Border Style="{StaticResource Tag}" ToolTip="{Binding RankToolTip}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding RankColor}" VerticalAlignment="Center" Margin="0,1,7,0" />
+                                                    <TextBlock Text="{Binding RankText}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding RankColor}" />
+                                                    <TextBlock Text="{Binding LeaderboardText}" FontSize="12" Margin="6,0,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               Visibility="{Binding HasLeaderboard, Converter={StaticResource BoolToVisibility}}" />
+                                                </StackPanel>
+                                            </Border>
                                             <Border Style="{StaticResource Tag}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="11"

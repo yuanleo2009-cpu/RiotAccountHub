@@ -142,4 +142,72 @@ public sealed class RiotHelpersTests
         Assert.Null(RiotLocalApi.ParseActiveAlias("不是 JSON"));
         Assert.Null(RiotLocalApi.ParseActiveAlias("[]"));
     }
+
+    // ---------------- 段位 ----------------
+
+    private static string ToBase64(string json) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+
+    [Fact]
+    public void 段位_從目前格式的_presence_讀取()
+    {
+        // 結構與使用者電腦上 VALORANT 13.10 實際的 private 資料相同（只留相關欄位，值是假的）
+        var priv = ToBase64("""
+            { "isValid": true, "partySize": 1,
+              "playerPresenceData": { "accountLevel": 195, "competitiveTier": 24, "leaderboardPosition": 6373, "platformOverride": "PC" },
+              "matchPresenceData": { "sessionLoopState": "MENUS", "queueId": "unrated" } }
+            """);
+        var rank = RiotLocalApi.ParsePresencePrivate(priv);
+        Assert.NotNull(rank);
+        Assert.Equal(24, rank!.CompetitiveTier);
+        Assert.Equal(6373, rank.LeaderboardPosition);
+        Assert.Equal(195, rank.AccountLevel);
+    }
+
+    [Fact]
+    public void 段位_舊格式直接放在最外層也讀得到_名次為0時當作沒有()
+    {
+        var rank = RiotLocalApi.ParsePresencePrivate(ToBase64("""{ "competitiveTier": 12, "leaderboardPosition": 0, "accountLevel": 40 }"""));
+        Assert.Equal(12, rank!.CompetitiveTier);
+        Assert.Null(rank.LeaderboardPosition);
+    }
+
+    [Fact]
+    public void 段位_只取自己的_VALORANT_presence()
+    {
+        var mine = ToBase64("""{ "playerPresenceData": { "competitiveTier": 18 } }""");
+        var friend = ToBase64("""{ "playerPresenceData": { "competitiveTier": 27 } }""");
+        var json = $$"""
+            { "presences": [
+                { "puuid": "friend", "product": "valorant", "private": "{{friend}}" },
+                { "puuid": "me", "product": "league_of_legends", "private": "{{friend}}" },
+                { "puuid": "me", "product": "valorant", "private": "{{mine}}" }
+            ] }
+            """;
+        Assert.Equal(18, RiotLocalApi.ParseOwnRank(json, "me")!.CompetitiveTier);
+        Assert.Null(RiotLocalApi.ParseOwnRank(json, "nobody"));
+    }
+
+    [Fact]
+    public void 段位_資料壞掉時回傳_null()
+    {
+        Assert.Null(RiotLocalApi.ParsePresencePrivate("這不是base64!!"));
+        Assert.Null(RiotLocalApi.ParsePresencePrivate(ToBase64("""{ "playerPresenceData": { } }""")));
+        Assert.Null(RiotLocalApi.ParseOwnRank("不是 JSON", "me"));
+    }
+
+    [Theory]
+    [InlineData(0, "未分級")]
+    [InlineData(3, "鐵牌 1")]
+    [InlineData(8, "銅牌 3")]
+    [InlineData(12, "金牌 1")]
+    [InlineData(20, "鑽石 3")]
+    [InlineData(21, "超凡入聖 1")]
+    [InlineData(24, "神話 1")]
+    [InlineData(26, "神話 3")]
+    [InlineData(27, "輻能戰魂")]
+    [InlineData(30, "段位 30")]
+    public void 段位名稱對照(int tier, string expected)
+    {
+        Assert.Equal(expected, RiotAccountHub.Core.Models.RankNames.ToDisplay(tier));
+    }
 }

@@ -126,6 +126,9 @@ public sealed class RiotClientService
     /// <summary>有沒有遊戲正在執行(VALORANT / LoL / LoR)</summary>
     public bool IsGameRunning() => GameProcesses.Any(IsRunning);
 
+    /// <summary>VALORANT 遊戲本體有沒有在執行（段位資料只有這時候讀得到）</summary>
+    public bool IsValorantRunning() => IsRunning("VALORANT-Win64-Shipping");
+
     private static bool IsRunning(string name)
     {
         var list = Process.GetProcessesByName(name);

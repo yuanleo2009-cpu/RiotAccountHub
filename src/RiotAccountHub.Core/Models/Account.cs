@@ -24,6 +24,9 @@ public sealed class Account
     /// </summary>
     public string? Puuid { get; set; }
 
+    /// <summary>最後一次看到的段位（還沒用啟動器開過遊戲就是 null）</summary>
+    public RankInfo? Rank { get; set; }
+
     /// <summary>登入方式（只是標籤，方便使用者辨認）</summary>
     public LoginMethod LoginMethod { get; set; } = LoginMethod.RiotAccount;
 

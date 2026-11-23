@@ -50,6 +50,16 @@ public sealed class AccountSwitcher
     /// <summary>有沒有遊戲正在執行</summary>
     public bool IsGameRunning() => _riot.IsGameRunning();
 
+    /// <summary>
+    /// 讀取目前正在玩的帳號與段位（只讀本機資料）。
+    /// VALORANT 沒在執行、或讀不到就回傳 null。
+    /// </summary>
+    public async Task<CurrentRank?> ReadCurrentRankAsync()
+    {
+        if (!_riot.IsValorantRunning()) return null;
+        return await _api.GetCurrentRankAsync();
+    }
+
     // ------------------------------------------------------------------
     // 切換並啟動
     // ------------------------------------------------------------------

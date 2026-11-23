@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RiotAccountHub.Core;
@@ -27,6 +28,11 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IDialogService _dialogs;
 
     private AppSettings _settings = new();
+
+    // 段位自動更新：每 15 秒看一次 VALORANT 有沒有在執行，有的話讀目前帳號的段位（只讀本機資料）
+    private readonly DispatcherTimer _rankTimer = new() { Interval = TimeSpan.FromSeconds(15) };
+    private bool _rankCheckRunning;
+    private DateTime _lastRankSaveUtc = DateTime.MinValue;
 
     public MainViewModel(
         AppPaths paths,
@@ -100,6 +106,63 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         RefreshStatus();
+
+        // 開始自動更新段位（程式一打開就先檢查一次）
+        _rankTimer.Tick += async (_, _) => await UpdateRankAsync();
+        _rankTimer.Start();
+        _ = UpdateRankAsync();
+    }
+
+    /// <summary>
+    /// 讀取「目前正在玩的帳號」的段位，存到對應的卡片上。
+    /// 只讀本機 Riot Client 的資料；VALORANT 沒開、讀不到、或帳號不在清單裡都會直接略過。
+    /// </summary>
+    private async Task UpdateRankAsync()
+    {
+        if (_rankCheckRunning || IsBusy) return;
+        _rankCheckRunning = true;
+        try
+        {
+            var current = await _switcher.ReadCurrentRankAsync();
+            if (current is null) return;
+
+            var card = Accounts.FirstOrDefault(a => IsSameAccount(a.Model, current.Who));
+            if (card is null) return; // 正在玩的帳號不在清單裡
+
+            var model = card.Model;
+            var rank = current.Rank;
+            var changed = model.Rank is null
+                || model.Rank.CompetitiveTier != rank.CompetitiveTier
+                || model.Rank.LeaderboardPosition != rank.LeaderboardPosition
+                || model.Rank.AccountLevel != rank.AccountLevel
+                || (model.Puuid is null && current.Who.Puuid is not null);
+
+            model.Rank = new RankInfo
+            {
+                CompetitiveTier = rank.CompetitiveTier,
+                LeaderboardPosition = rank.LeaderboardPosition,
+                AccountLevel = rank.AccountLevel,
+                UpdatedUtc = DateTime.UtcNow,
+            };
+            model.Puuid ??= current.Who.Puuid; // 舊帳號順便補上 puuid
+            card.Refresh();
+
+            // 段位有變才馬上存檔；沒變的話最多 5 分鐘存一次「更新時間」
+            if (changed || DateTime.UtcNow - _lastRankSaveUtc > TimeSpan.FromMinutes(5))
+            {
+                SaveAccounts();
+                _lastRankSaveUtc = DateTime.UtcNow;
+                if (changed) AppLog.Info($"段位更新：{RankNames.ToDisplay(rank.CompetitiveTier)}");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("讀取段位失敗", ex); // 段位只是附加資訊，失敗不打擾使用者
+        }
+        finally
+        {
+            _rankCheckRunning = false;
+        }
     }
 
     /// <summary>更新「還原」按鈕狀態、路徑文字、每張卡片的快照狀態</summary>
