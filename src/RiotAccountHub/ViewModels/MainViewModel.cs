@@ -813,12 +813,15 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshSettingsFlags();
     }
 
-    /// <summary>打開「熱門準星」視窗（只做複製代碼，不會修改遊戲設定）</summary>
+    /// <summary>
+    /// 「熱門準星」：直接用內建瀏覽器打開 VCRDB 網站（工具列上可以打開「我的準星」）。
+    /// 只做瀏覽與複製代碼，不會修改遊戲設定。
+    /// </summary>
     [RelayCommand]
     private void OpenCrosshairs()
     {
         var vm = new CrosshairsViewModel(new CrosshairLibrary(_paths.CrosshairsFile), _dialogs);
-        _dialogs.ShowCrosshairs(vm);
+        vm.OpenVcrdbFromMain();
     }
 
     [RelayCommand]

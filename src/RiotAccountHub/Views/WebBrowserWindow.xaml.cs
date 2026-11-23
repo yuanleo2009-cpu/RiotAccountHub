@@ -16,14 +16,23 @@ namespace RiotAccountHub.Views;
 public partial class WebBrowserWindow : Window
 {
     private readonly Uri _startUri;
+    private readonly Action? _extraAction;
 
-    public WebBrowserWindow(string url, string title, string hint)
+    public WebBrowserWindow(string url, string title, string hint, string? extraButtonText = null, Action? extraButtonAction = null)
     {
         InitializeComponent();
         DarkTitleBar.Apply(this);
         _startUri = new Uri(url);
         Title = title;
         HintText.Text = hint;
+
+        // 工具列上額外的按鈕（例如「我的準星」）
+        _extraAction = extraButtonAction;
+        if (extraButtonText is not null && extraButtonAction is not null)
+        {
+            ExtraButtonText.Text = extraButtonText;
+            ExtraButton.Visibility = Visibility.Visible;
+        }
         Loaded += async (_, _) => await InitializeBrowserAsync();
     }
 
@@ -101,6 +110,8 @@ public partial class WebBrowserWindow : Window
         OpenExternal(Browser.CoreWebView2?.Source ?? _startUri.ToString());
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private void OnExtra(object sender, RoutedEventArgs e) => _extraAction?.Invoke();
 
     protected override void OnClosed(EventArgs e)
     {

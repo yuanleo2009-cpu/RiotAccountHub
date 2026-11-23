@@ -33,8 +33,11 @@ public interface IDialogService
     /// <summary>新增 / 編輯準星；按儲存回傳（名稱, 代碼），取消回傳 null</summary>
     (string Name, string Code)? ShowCrosshairEditor(string title, string name, string code, Helpers.CrosshairBackground background);
 
-    /// <summary>在程式內用 WebView2 開網頁（關掉視窗才會回來）</summary>
-    void ShowWebBrowser(string url, string title, string hint);
+    /// <summary>
+    /// 在程式內用 WebView2 開網頁（關掉視窗才會回來）。
+    /// extraButtonText / extraButtonAction：工具列上額外的按鈕（例如「我的準星」），不需要就傳 null。
+    /// </summary>
+    void ShowWebBrowser(string url, string title, string hint, string? extraButtonText = null, Action? extraButtonAction = null);
 
     /// <summary>請使用者選擇 RiotClientServices.exe；取消回傳 null</summary>
     string? PickRiotClientExe(string? initialDirectory);

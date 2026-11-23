@@ -170,6 +170,7 @@
         <Border Grid.Row="4" Margin="0,12,0,0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Command="{Binding OpenVcrdbCommand}"
+                        Visibility="{Binding ShowVcrdbButton, Converter={StaticResource BoolToVisibility}}"
                         ToolTip="在程式裡打開 VCRDB 網站，直接在網站上挑選、複製準星">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE774;" Style="{StaticResource ButtonIcon}" />

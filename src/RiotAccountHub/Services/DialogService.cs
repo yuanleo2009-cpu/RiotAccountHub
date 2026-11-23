@@ -53,9 +53,9 @@ public sealed class DialogService : IDialogService
         return window.ShowDialog() == true ? (window.ResultName, window.ResultCode) : null;
     }
 
-    public void ShowWebBrowser(string url, string title, string hint)
+    public void ShowWebBrowser(string url, string title, string hint, string? extraButtonText = null, Action? extraButtonAction = null)
     {
-        var window = new WebBrowserWindow(url, title, hint) { Owner = Owner() };
+        var window = new WebBrowserWindow(url, title, hint, extraButtonText, extraButtonAction) { Owner = Owner() };
         window.ShowDialog();
     }
 

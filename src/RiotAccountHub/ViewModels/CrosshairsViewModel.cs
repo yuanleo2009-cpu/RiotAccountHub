@@ -131,12 +131,27 @@ public sealed partial class CrosshairsViewModel : ObservableObject
         RefreshView();
     }
 
-    /// <summary>在程式內開啟 VCRDB，關掉時如果剪貼簿有新的準星代碼，就問要不要加入</summary>
+    /// <summary>「在 VCRDB 看更多」按鈕要不要顯示（從瀏覽器打開這個視窗時就不用再顯示）</summary>
+    [ObservableProperty]
+    private bool _showVcrdbButton = true;
+
+    /// <summary>在程式內開啟 VCRDB（從「我的準星」視窗按的）</summary>
     [RelayCommand]
-    private void OpenVcrdb()
+    private void OpenVcrdb() => OpenVcrdbCore(withMyCrosshairsButton: false);
+
+    /// <summary>
+    /// 主畫面的「熱門準星」：直接用內建瀏覽器開 VCRDB，
+    /// 工具列上有「我的準星」可以打開收藏清單。
+    /// </summary>
+    public void OpenVcrdbFromMain() => OpenVcrdbCore(withMyCrosshairsButton: true);
+
+    /// <summary>開啟 VCRDB；關掉時如果剪貼簿有新的準星代碼，就問要不要加入「我的準星」</summary>
+    private void OpenVcrdbCore(bool withMyCrosshairsButton)
     {
-        _dialogs.ShowWebBrowser(VcrdbUrl, "VCRDB（Valorant Crosshair Database）",
-            "在網站上找到喜歡的準星、按它的複製按鈕後，關掉這個視窗，程式會問你要不要加入「我的準星」。");
+        _dialogs.ShowWebBrowser(VcrdbUrl, "熱門準星 · VCRDB（Valorant Crosshair Database）",
+            "在網站上按準星的複製按鈕，就能直接到遊戲「設定 → 準星 → 匯入設定檔代碼」貼上。關掉這個視窗時，程式會問你要不要存進「我的準星」。",
+            withMyCrosshairsButton ? "我的準星" : null,
+            withMyCrosshairsButton ? ShowMyCrosshairsFromBrowser : null);
 
         var clip = ReadClipboard();
         if (CrosshairCode.LooksLikeCode(clip) && Items.All(i => i.Code != clip!.Trim()) &&
@@ -149,6 +164,14 @@ public sealed partial class CrosshairsViewModel : ObservableObject
     // ==================================================================
     // 小工具
     // ==================================================================
+
+    /// <summary>從瀏覽器工具列打開「我的準星」</summary>
+    private void ShowMyCrosshairsFromBrowser()
+    {
+        ShowVcrdbButton = false;
+        _dialogs.ShowCrosshairs(this);
+        ShowVcrdbButton = true;
+    }
 
     private void AddInternal(bool prefillFromClipboard)
     {

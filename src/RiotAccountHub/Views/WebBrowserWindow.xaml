@@ -26,6 +26,12 @@
                     </Button>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="ExtraButton" Visibility="Collapsed" Margin="0,0,8,0" Click="OnExtra">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE734;" Style="{StaticResource ButtonIcon}" Foreground="#FFD978" />
+                            <TextBlock x:Name="ExtraButtonText" />
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource GhostButton}" ToolTip="用電腦預設的瀏覽器開啟" Click="OnOpenExternal" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8A7;" Style="{StaticResource ButtonIcon}" />

@@ -42,7 +42,7 @@
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
                     <Button Style="{StaticResource GhostButton}" Margin="0,0,4,0"
                             Command="{Binding OpenCrosshairsCommand}"
-                            ToolTip="收藏、預覽、複製準星代碼，也可以到 VCRDB 挑熱門準星">
+                            ToolTip="在程式裡打開 VCRDB，直接挑熱門準星、複製代碼">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8F0;" Style="{StaticResource ButtonIcon}" />
                             <TextBlock Text="熱門準星" />
