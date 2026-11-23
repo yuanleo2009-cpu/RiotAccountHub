@@ -1,0 +1,50 @@
+namespace RiotAccountHub.Core;
+
+/// <summary>
+/// 集中管理「本程式自己的資料」要放在哪裡。
+/// 預設位置是 %AppData%\RiotAccountHub\,
+/// 單元測試時可以傳入一個暫存資料夾，避免動到真正的資料。
+/// </summary>
+public sealed class AppPaths
+{
+    public AppPaths(string dataRoot)
+    {
+        DataRoot = dataRoot;
+    }
+
+    /// <summary>預設路徑：%AppData%\RiotAccountHub</summary>
+    public static AppPaths CreateDefault() =>
+        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RiotAccountHub"));
+
+    /// <summary>資料根目錄</summary>
+    public string DataRoot { get; }
+
+    /// <summary>帳號清單（只有 Riot ID、備註等，不含任何密碼或登入資料）</summary>
+    public string AccountsFile => Path.Combine(DataRoot, "accounts.json");
+
+    /// <summary>程式設定</summary>
+    public string SettingsFile => Path.Combine(DataRoot, "settings.json");
+
+    /// <summary>每個帳號的加密快照都放在這個資料夾</summary>
+    public string SnapshotsDir => Path.Combine(DataRoot, "snapshots");
+
+    /// <summary>第一次使用前，使用者「原本」的登入狀態（加密）</summary>
+    public string OriginalBackupFile => Path.Combine(DataRoot, "original-backup.bin");
+
+    /// <summary>切換檔案時用的暫存區（切換成功後會自動清掉）</summary>
+    public string StagingDir => Path.Combine(DataRoot, "staging");
+
+    /// <summary>記錄檔資料夾（只記錄操作步驟，不會記錄任何登入資料）</summary>
+    public string LogsDir => Path.Combine(DataRoot, "logs");
+
+    /// <summary>某個帳號的快照檔案路徑</summary>
+    public string SnapshotFile(string accountId) => Path.Combine(SnapshotsDir, accountId + ".bin");
+
+    /// <summary>確保資料夾都存在</summary>
+    public void EnsureCreated()
+    {
+        Directory.CreateDirectory(DataRoot);
+        Directory.CreateDirectory(SnapshotsDir);
+        Directory.CreateDirectory(LogsDir);
+    }
+}

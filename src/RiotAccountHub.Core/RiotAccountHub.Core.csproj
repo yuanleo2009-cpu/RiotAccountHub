@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RiotAccountHub.Core:程式的「核心邏輯」,不含任何畫面。
+    - Riot Client 操作(找路徑、關閉、啟動、讀本機 API)
+    - 快照儲存與 DPAPI 加密
+    - 帳號清單與設定的存檔
+    把它跟介面分開,單元測試就可以直接測這裡的程式碼。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- 打包(Release)時不產生除錯符號檔,讓輸出只有一個 .exe -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Windows DPAPI(ProtectedData)加密功能 -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 讓測試專案可以存取 internal 的類別 -->
+    <InternalsVisibleTo Include="RiotAccountHub.Tests" />
+  </ItemGroup>
+
+</Project>

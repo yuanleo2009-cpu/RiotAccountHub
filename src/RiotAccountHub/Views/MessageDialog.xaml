@@ -1,0 +1,37 @@
+<Window x:Class="RiotAccountHub.Views.MessageDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource DarkWindowStyle}"
+        Title="Riot Account Hub"
+        Width="480" SizeToContent="Height"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <!-- 深色風格的訊息視窗（取代 Windows 預設的白色 MessageBox） -->
+    <Grid Margin="28,24,28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 圖示 + 標題 -->
+        <StackPanel Orientation="Horizontal">
+            <Border x:Name="IconBg" Width="36" Height="36" CornerRadius="18" Margin="0,0,12,0">
+                <TextBlock x:Name="IconGlyph" FontFamily="{StaticResource IconFont}" FontSize="18"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
+                       TextWrapping="Wrap" MaxWidth="360" />
+        </StackPanel>
+
+        <!-- 訊息內容 -->
+        <TextBlock x:Name="MessageText" Grid.Row="1" Margin="0,16,0,0" TextWrapping="Wrap"
+                   Foreground="{StaticResource TextSecondaryBrush}" LineHeight="22" />
+
+        <!-- 按鈕 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+            <Button x:Name="SecondaryButton" MinWidth="96" Margin="0,0,10,0" Click="OnSecondary" IsCancel="True" />
+            <Button x:Name="PrimaryButton" MinWidth="96" Click="OnPrimary" Style="{StaticResource PrimaryButton}" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RiotAccountHub.Core/RiotAccountHub.Core.csproj" />
+    <Project Path="src/RiotAccountHub/RiotAccountHub.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RiotAccountHub.Tests/RiotAccountHub.Tests.csproj" />
+  </Folder>
+</Solution>
