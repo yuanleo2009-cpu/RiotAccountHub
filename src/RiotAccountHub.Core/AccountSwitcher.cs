@@ -97,6 +97,35 @@ public sealed class AccountSwitcher
             return Task.FromResult(LaunchResult.LaunchedWithoutSwitch);
         });
 
+    /// <summary>
+    /// 自動「開始遊戲」：等 Riot Client 登入完成後，請它啟動 VALORANT。
+    /// 每秒檢查一次，最多等 timeout；遊戲已經在跑（例如使用者自己按了）就不再動作。
+    /// 只用本機 Riot Client API，不碰遊戲或 Vanguard。回傳是否成功送出開始遊戲。
+    /// </summary>
+    public async Task<bool> AutoStartGameAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < timeout && !ct.IsCancellationRequested)
+        {
+            if (_riot.IsValorantRunning())
+            {
+                AppLog.Info("自動開始遊戲：VALORANT 已經在執行，不需要再按");
+                return true;
+            }
+
+            if (await _api.IsLoggedInAsync(ct) && await _api.LaunchValorantAsync(ct))
+            {
+                AppLog.Info($"自動開始遊戲：已送出（等待 {sw.ElapsedMilliseconds} ms）");
+                return true;
+            }
+
+            await Task.Delay(1000, ct);
+        }
+
+        AppLog.Info("自動開始遊戲：等待逾時（Riot Client 可能還沒登入），請在 Riot 介面手動按開始");
+        return false;
+    }
+
     /// <summary>切換到指定帳號的快照，並啟動 VALORANT</summary>
     public Task SwitchAndLaunchAsync(string accountId, string clientPath, IProgress<SwitchStep> progress) =>
         RunExclusiveAsync(async () =>

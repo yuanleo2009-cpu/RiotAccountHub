@@ -258,6 +258,11 @@
             <!-- 下方狀態列 -->
             <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="28,8">
                 <DockPanel>
+                    <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" Margin="16,0,0,0"
+                              VerticalAlignment="Center" FontSize="12"
+                              IsChecked="{Binding AutoStartGame}"
+                              Content="按啟動後自動開始遊戲"
+                              ToolTip="開啟後，按「啟動」不用再到 Riot Client 按「開始遊戲」，登入完成就會自動開始。" />
                     <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" FontSize="12"
                             Command="{Binding OpenDataFolderCommand}" ToolTip="打開 %AppData%\RiotAccountHub">
                         <StackPanel Orientation="Horizontal">

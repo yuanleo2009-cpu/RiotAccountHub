@@ -91,6 +91,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasOriginalBackup;
 
+    /// <summary>按「啟動」後自動在 Riot Client 按「開始遊戲」（存在設定裡）</summary>
+    [ObservableProperty]
+    private bool _autoStartGame;
+
+    partial void OnAutoStartGameChanged(bool value)
+    {
+        if (_settings.AutoStartGame == value) return;
+        _settings.AutoStartGame = value;
+        _settingsRepo.Save(_settings);
+        AppLog.Info("自動開始遊戲：" + (value ? "開啟" : "關閉"));
+    }
+
     /// <summary>畫面下方顯示的 Riot Client 路徑</summary>
     [ObservableProperty]
     private string _riotClientPathText = "";
@@ -103,6 +115,7 @@ public sealed partial class MainViewModel : ObservableObject
     public void Initialize()
     {
         _settings = _settingsRepo.Load();
+        AutoStartGame = _settings.AutoStartGame;
 
         foreach (var account in _accountRepo.Load())
         {
@@ -225,9 +238,10 @@ public sealed partial class MainViewModel : ObservableObject
             var quick = BeginBusy($"啟動 {card.RiotId}", SwitchStep.Launching);
             var result = await _switcher.LaunchWithoutSwitchAsync(clientPath, quick);
             MarkUsed(card);
+            if (result == LaunchResult.LaunchedWithoutSwitch) StartAutoStartGame();
             await ShowCompletedAsync(result == LaunchResult.AlreadyPlaying
                 ? "你已經在玩這個帳號了，已切換到遊戲視窗。"
-                : "這個帳號已經登入，直接啟動 VALORANT！");
+                : AutoStartGame ? "這個帳號已經登入，正在自動開始遊戲！" : "這個帳號已經登入，直接啟動 VALORANT！");
             return;
         }
 
@@ -236,8 +250,11 @@ public sealed partial class MainViewModel : ObservableObject
         var progress = BeginBusy($"切換到 {card.RiotId}", SwitchStep.Closing, SwitchStep.Switching, SwitchStep.Launching);
         await _switcher.SwitchAndLaunchAsync(card.Model.Id, clientPath, progress);
         MarkUsed(card);
+        StartAutoStartGame();
 
-        await ShowCompletedAsync("已啟動！VALORANT 稍後就會開啟。");
+        await ShowCompletedAsync(AutoStartGame
+            ? "已啟動！Riot Client 登入完成後會自動開始遊戲。"
+            : "已啟動！請在 Riot Client 按「開始遊戲」。");
     });
 
     // ==================================================================
@@ -524,6 +541,26 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!_switcher.IsGameRunning()) return true;
         return _dialogs.Confirm("遊戲正在執行", "切換帳號需要關閉目前正在執行的遊戲。\n\n確定要關閉遊戲並切換嗎？", "關閉並切換", "取消", warning: true);
+    }
+
+    /// <summary>
+    /// 如果有開「自動開始遊戲」，在背景等 Riot Client 登入完成後幫忙按「開始遊戲」（最多等 90 秒）。
+    /// 失敗也不會跳錯誤，只是需要使用者自己在 Riot 介面按一下。
+    /// </summary>
+    private void StartAutoStartGame()
+    {
+        if (!AutoStartGame) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _switcher.AutoStartGameAsync(TimeSpan.FromSeconds(90));
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("自動開始遊戲失敗", ex);
+            }
+        });
     }
 
     /// <summary>記錄「上次使用時間」並存檔</summary>

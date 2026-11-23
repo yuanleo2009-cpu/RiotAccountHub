@@ -10,4 +10,10 @@ public sealed class AppSettings
     /// 是 null 的話，程式會自動從 RiotClientInstalls.json 找。
     /// </summary>
     public string? RiotClientPath { get; set; }
+
+    /// <summary>
+    /// 按「啟動」後，自動在 Riot Client 按「開始遊戲」（不用再按第二次）。
+    /// 預設關閉，由使用者在主畫面下方開啟。
+    /// </summary>
+    public bool AutoStartGame { get; set; }
 }

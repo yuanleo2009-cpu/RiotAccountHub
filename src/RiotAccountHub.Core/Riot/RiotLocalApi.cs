@@ -210,6 +210,28 @@ public sealed class RiotLocalApi
         }
     }
 
+    /// <summary>Riot Client 是否已經登入完成（GET /rso-auth/v1/authorization 回 200）</summary>
+    public async Task<bool> IsLoggedInAsync(CancellationToken ct = default)
+    {
+        var (status, _) = await GetAsync("/rso-auth/v1/authorization", ct);
+        return status == HttpStatusCode.OK;
+    }
+
+    /// <summary>
+    /// 請 Riot Client 開始 VALORANT，效果等於在 Riot 介面按「開始遊戲」。
+    ///
+    /// 為什麼需要：Riot 用伺服器端的功能開關（autoLaunch.disabled = true）關掉了
+    /// 「--launch-product 參數自動開遊戲」，所以只傳參數的話，還要在 Riot 介面再按一次「開始遊戲」。
+    ///
+    /// 已在使用者電腦上驗證：POST /product-launcher/v1/products/valorant/patchlines/live
+    /// 回 200（內容是遊戲工作階段編號），VALORANT 隨即啟動。
+    /// </summary>
+    public async Task<bool> LaunchValorantAsync(CancellationToken ct = default)
+    {
+        var (status, _) = await SendAsync(HttpMethod.Post, "/product-launcher/v1/products/valorant/patchlines/live", ct);
+        return status == HttpStatusCode.OK;
+    }
+
     /// <summary>Riot Client 有沒有在執行（看 lockfile 存不存在）</summary>
     public bool IsClientRunning() => ReadLockfile() is not null;
 
@@ -249,7 +271,11 @@ public sealed class RiotLocalApi
     }
 
     /// <summary>送出 GET 請求。回傳 （狀態碼， 內容）；連不上時狀態碼是 null。</summary>
-    private async Task<(HttpStatusCode? Status, string? Body)> GetAsync(string path, CancellationToken ct)
+    private Task<(HttpStatusCode? Status, string? Body)> GetAsync(string path, CancellationToken ct) =>
+        SendAsync(HttpMethod.Get, path, ct);
+
+    /// <summary>送出請求到本機 Riot Client。回傳 （狀態碼， 內容）；連不上時狀態碼是 null。</summary>
+    private async Task<(HttpStatusCode? Status, string? Body)> SendAsync(HttpMethod method, string path, CancellationToken ct)
     {
         var lockfile = ReadLockfile();
         if (lockfile is null) return (null, null);
@@ -263,7 +289,7 @@ public sealed class RiotLocalApi
         using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(4) };
 
         var url = $"{lockfile.Protocol}://127.0.0.1:{lockfile.Port}{path}";
-        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        using var req = new HttpRequestMessage(method, url);
         req.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes("riot:" + lockfile.Password)));
 
