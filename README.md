@@ -60,6 +60,19 @@ tests/RiotAccountHub.Tests/   單元測試
 tools/make-icon.ps1           產生程式圖示
 ```
 
+## 安裝（讓 Windows 搜尋找得到）
+
+在專案資料夾開 PowerShell，執行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+它會打包程式、複製到 `%LocalAppData%\Programs\RiotAccountHub\`，並在「開始」功能表建立捷徑。之後按 Windows 鍵輸入「Riot Account Hub」就能直接開啟（加上 `-Desktop` 會同時建立桌面捷徑）。
+
+- 更新程式：改完程式碼後再執行一次 `install.ps1`
+- 解除安裝：`powershell -ExecutionPolicy Bypass -File .\uninstall.ps1`（帳號資料會保留）
+
 ## 開發
 
 需要 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)。
