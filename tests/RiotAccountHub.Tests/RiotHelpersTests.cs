@@ -239,4 +239,22 @@ public sealed class RiotHelpersTests
         Assert.True(RiotAccountHub.Core.Cards.PlayerCardCache.LooksLikePng(png));
         Assert.False(RiotAccountHub.Core.Cards.PlayerCardCache.LooksLikePng(System.Text.Encoding.UTF8.GetBytes("<html>error</html>")));
     }
+
+    // ---------------- 判斷是不是同一個帳號（快速啟動用） ----------------
+
+    [Fact]
+    public void 同一個帳號_有_puuid_時比對_puuid_改名也認得出來()
+    {
+        var account = new RiotAccountHub.Core.Models.Account { GameName = "舊名字", TagLine = "TW1", Puuid = "AAA" };
+        Assert.True(account.IsSameAccount(new RiotIdInfo("新名字", "0001", "aaa")));
+        Assert.False(account.IsSameAccount(new RiotIdInfo("舊名字", "TW1", "BBB")));
+    }
+
+    [Fact]
+    public void 同一個帳號_沒有_puuid_時比對_RiotID_不分大小寫()
+    {
+        var account = new RiotAccountHub.Core.Models.Account { GameName = "SilentAim", TagLine = "Tw1" };
+        Assert.True(account.IsSameAccount(new RiotIdInfo("silentaim", "TW1", "CCC")));
+        Assert.False(account.IsSameAccount(new RiotIdInfo("Other", "TW1", null)));
+    }
 }

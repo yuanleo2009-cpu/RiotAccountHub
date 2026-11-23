@@ -1,3 +1,4 @@
+using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Snapshots;
 
@@ -64,10 +65,44 @@ public sealed class AccountSwitcher
     // 切換並啟動
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// Riot Client 現在是不是已經登入這個帳號？
+    /// 是的話就不需要「關閉 → 換檔案 → 重開」，可以直接開遊戲，快很多。
+    /// </summary>
+    public async Task<bool> IsCurrentlyLoggedInAsync(Account account)
+    {
+        if (!_riot.IsAnyRiotProcessRunning()) return false;
+        var current = await _api.GetRiotIdAsync();
+        return current is not null && account.IsSameAccount(current);
+    }
+
+    /// <summary>
+    /// 快速路徑：帳號已經登入時使用，不關閉也不換檔案。
+    ///   - VALORANT 已經開著 → 把遊戲視窗叫到最前面
+    ///   - 還沒開 → 請正在執行的 Riot Client 直接啟動 VALORANT
+    /// </summary>
+    public Task<LaunchResult> LaunchWithoutSwitchAsync(string clientPath, IProgress<SwitchStep> progress) =>
+        RunExclusiveAsync(() =>
+        {
+            progress.Report(SwitchStep.Launching);
+            if (_riot.IsValorantRunning())
+            {
+                _riot.BringValorantToFront();
+                AppLog.Info("帳號已在遊戲中，切換到遊戲視窗");
+                return Task.FromResult(LaunchResult.AlreadyPlaying);
+            }
+
+            _riot.StartValorant(clientPath);
+            AppLog.Info("帳號已登入，直接啟動 VALORANT（不需要切換）");
+            return Task.FromResult(LaunchResult.LaunchedWithoutSwitch);
+        });
+
     /// <summary>切換到指定帳號的快照，並啟動 VALORANT</summary>
     public Task SwitchAndLaunchAsync(string accountId, string clientPath, IProgress<SwitchStep> progress) =>
         RunExclusiveAsync(async () =>
         {
+            var total = System.Diagnostics.Stopwatch.StartNew();
+
             // 先讀快照（檔案不見的話，在關閉 Riot Client 之前就先報錯）
             var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
 
@@ -83,7 +118,7 @@ public sealed class AccountSwitcher
 
             progress.Report(SwitchStep.Launching);
             _riot.StartValorant(clientPath);
-            AppLog.Info("切換完成並啟動 VALORANT:" + accountId);
+            AppLog.Info($"切換完成並啟動 VALORANT：{accountId}（本程式花費 {total.ElapsedMilliseconds} ms）");
         });
 
     // ------------------------------------------------------------------
@@ -244,6 +279,17 @@ public sealed class AccountSwitcher
             _gate.Release();
         }
     }
+}
+
+/// <summary>「啟動」按下去之後實際做了什麼</summary>
+public enum LaunchResult
+{
+    /// <summary>關閉 Riot Client、換成這個帳號、再啟動</summary>
+    Switched,
+    /// <summary>帳號本來就登入著，直接啟動 VALORANT</summary>
+    LaunchedWithoutSwitch,
+    /// <summary>本來就在玩這個帳號，只是把遊戲視窗叫到前面</summary>
+    AlreadyPlaying,
 }
 
 /// <summary>進度步驟（介面會把它顯示成「關閉中 → 切換中 → 啟動中」）</summary>

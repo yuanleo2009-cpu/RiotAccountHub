@@ -129,6 +129,33 @@ public sealed class RiotClientService
     /// <summary>VALORANT 遊戲本體有沒有在執行（段位資料只有這時候讀得到）</summary>
     public bool IsValorantRunning() => IsRunning("VALORANT-Win64-Shipping");
 
+    /// <summary>把 VALORANT 的視窗叫到最前面（例如被縮小了）。只是切換視窗，不會碰遊戲本身。</summary>
+    public void BringValorantToFront()
+    {
+        foreach (var p in Process.GetProcessesByName("VALORANT-Win64-Shipping"))
+        {
+            using (p)
+            {
+                var hwnd = p.MainWindowHandle;
+                if (hwnd == IntPtr.Zero) continue;
+                if (IsIconic(hwnd)) ShowWindow(hwnd, SwRestore);
+                SetForegroundWindow(hwnd);
+                return;
+            }
+        }
+    }
+
+    private const int SwRestore = 9;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
     private static bool IsRunning(string name)
     {
         var list = Process.GetProcessesByName(name);
@@ -142,6 +169,9 @@ public sealed class RiotClientService
     /// </summary>
     public async Task CloseAllAsync(TimeSpan timeout, CancellationToken ct = default)
     {
+        // 本來就沒有在執行：不用關、也不用等
+        if (!IsAnyRiotProcessRunning()) return;
+
         var accessDenied = new HashSet<string>();
 
         foreach (var name in ProcessesToClose)
@@ -185,11 +215,13 @@ public sealed class RiotClientService
                     "以下程序沒有成功關閉：\n" + string.Join("、", still) + hint +
                     "\n\n沒有任何登入檔案被修改。");
             }
-            await Task.Delay(250, ct);
+            await Task.Delay(100, ct); // 每 0.1 秒檢查一次
         }
 
-        // 程序結束後，給 Windows 一點時間釋放檔案
-        await Task.Delay(800, ct);
+        // 程序結束後，給 Windows 一點點時間釋放檔案。
+        // 不用等太久：之後讀寫檔案時如果還被鎖住，SnapshotStore 會自動重試。
+        await Task.Delay(200, ct);
+        AppLog.Info($"Riot Client 已關閉（{sw.ElapsedMilliseconds} ms）");
     }
 
     // ------------------------------------------------------------------

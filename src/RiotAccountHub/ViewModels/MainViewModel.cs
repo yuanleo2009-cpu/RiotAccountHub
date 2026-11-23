@@ -215,14 +215,23 @@ public sealed partial class MainViewModel : ObservableObject
         var clientPath = EnsureClientPath();
         if (clientPath is null) return;
 
+        // 快速路徑：Riot Client 已經登入這個帳號 → 不用關閉重開，直接開遊戲
+        if (await _switcher.IsCurrentlyLoggedInAsync(card.Model))
+        {
+            var quick = BeginBusy($"啟動 {card.RiotId}", SwitchStep.Launching);
+            var result = await _switcher.LaunchWithoutSwitchAsync(clientPath, quick);
+            MarkUsed(card);
+            await ShowCompletedAsync(result == LaunchResult.AlreadyPlaying
+                ? "你已經在玩這個帳號了，已切換到遊戲視窗。"
+                : "這個帳號已經登入，直接啟動 VALORANT！");
+            return;
+        }
+
         if (!ConfirmCloseGame()) return;
 
         var progress = BeginBusy($"切換到 {card.RiotId}", SwitchStep.Closing, SwitchStep.Switching, SwitchStep.Launching);
         await _switcher.SwitchAndLaunchAsync(card.Model.Id, clientPath, progress);
-
-        card.Model.LastUsedUtc = DateTime.UtcNow;
-        SaveAccounts();
-        card.Refresh();
+        MarkUsed(card);
 
         await ShowCompletedAsync("已啟動！VALORANT 稍後就會開啟。");
     });
@@ -380,14 +389,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// 判斷是不是同一個帳號：兩邊都有 puuid 就比 puuid（改名也認得出來），
     /// 不然就比 Riot ID（不分大小寫）。
     /// </summary>
-    private static bool IsSameAccount(Account account, RiotIdInfo detected)
-    {
-        if (!string.IsNullOrEmpty(account.Puuid) && !string.IsNullOrEmpty(detected.Puuid))
-        {
-            return string.Equals(account.Puuid, detected.Puuid, StringComparison.OrdinalIgnoreCase);
-        }
-        return string.Equals(account.RiotId, detected.RiotId, StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsSameAccount(Account account, RiotIdInfo detected) => account.IsSameAccount(detected);
 
     /// <summary>取消登入流程：放回開始前的狀態</summary>
     private async Task CancelLoginAsync(PendingLogin pending)
@@ -512,6 +514,14 @@ public sealed partial class MainViewModel : ObservableObject
         return _dialogs.Confirm("遊戲正在執行", "切換帳號需要關閉目前正在執行的遊戲。\n\n確定要關閉遊戲並切換嗎？", "關閉並切換", "取消", warning: true);
     }
 
+    /// <summary>記錄「上次使用時間」並存檔</summary>
+    private void MarkUsed(AccountCardViewModel card)
+    {
+        card.Model.LastUsedUtc = DateTime.UtcNow;
+        SaveAccounts();
+        card.Refresh();
+    }
+
     private void SaveAccounts() => _accountRepo.Save(Accounts.Select(a => a.Model));
 
     /// <summary>
@@ -583,7 +593,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var item in BusySteps) item.State = StepState.Done;
         BusyCompleted = true;
         BusyDetail = message;
-        await Task.Delay(1500);
+        await Task.Delay(900); // 讓使用者看一眼「完成」就收起來
     }
 
     private void EndBusy()
