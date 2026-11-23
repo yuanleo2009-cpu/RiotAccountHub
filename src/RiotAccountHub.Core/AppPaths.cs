@@ -37,6 +37,9 @@ public sealed class AppPaths
     /// <summary>記錄檔資料夾（只記錄操作步驟，不會記錄任何登入資料）</summary>
     public string LogsDir => Path.Combine(DataRoot, "logs");
 
+    /// <summary>遊戲設定檔與套用前備份（只有遊戲設定，沒有登入資料）</summary>
+    public string GameSettingsDir => Path.Combine(DataRoot, "game-settings");
+
     /// <summary>卡面圖片的快取資料夾（下載一次就存在這裡）</summary>
     public string CardsDir => Path.Combine(DataRoot, "cards");
 

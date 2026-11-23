@@ -182,6 +182,37 @@ public sealed class RiotLocalApi
         }
     }
 
+    /// <summary>
+    /// 向本機 Riot Client 取得呼叫 Riot 伺服器用的 token（遊戲設定同步要用）。
+    /// 已驗證：GET /entitlements/v1/token → accessToken、token、subject(puuid)。
+    /// token 只放在記憶體裡用完就丟，絕對不會存檔或寫進記錄檔。
+    /// 沒開 Riot Client 或沒登入時回傳 null。
+    /// </summary>
+    public async Task<EntitlementTokens?> GetEntitlementsAsync(CancellationToken ct = default)
+    {
+        var (status, json) = await GetAsync("/entitlements/v1/token", ct);
+        if (status != HttpStatusCode.OK || json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            string? Read(string key) =>
+                root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            var access = Read("accessToken");
+            var entitlement = Read("token");
+            if (string.IsNullOrEmpty(access) || string.IsNullOrEmpty(entitlement)) return null;
+            return new EntitlementTokens(access, entitlement, Read("subject"));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Riot Client 有沒有在執行（看 lockfile 存不存在）</summary>
+    public bool IsClientRunning() => ReadLockfile() is not null;
+
     /// <summary>解析 /chat/v1/session 的回應</summary>
     internal static RiotIdInfo? ParseChatSession(string json) =>
         ParseRiotId(json, "game_name", "game_tag", "puuid");
@@ -259,6 +290,15 @@ public sealed class RiotLocalApi
 public sealed record RiotIdInfo(string GameName, string TagLine, string? Puuid)
 {
     public string RiotId => $"{GameName}#{TagLine}";
+}
+
+/// <summary>
+/// 呼叫 Riot 伺服器用的 token。這是敏感資料：只在記憶體中短暫使用，不存檔、不寫記錄。
+/// ToString 故意不顯示內容，避免不小心被印出來。
+/// </summary>
+public sealed record EntitlementTokens(string AccessToken, string EntitlementsJwt, string? Puuid)
+{
+    public override string ToString() => "EntitlementTokens（內容已隱藏）";
 }
 
 /// <summary>從 presence 讀到的段位資料</summary>

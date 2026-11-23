@@ -129,6 +129,44 @@ public sealed class RiotClientService
     /// <summary>VALORANT 遊戲本體有沒有在執行（段位資料只有這時候讀得到）</summary>
     public bool IsValorantRunning() => IsRunning("VALORANT-Win64-Shipping");
 
+    /// <summary>
+    /// 只關閉 VALORANT 遊戲（Riot Client 保持開著），用在套用遊戲設定前。
+    /// Vanguard 不在這個清單裡，不會被關閉。
+    /// </summary>
+    public async Task CloseValorantAsync()
+    {
+        string[] names = { "VALORANT-Win64-Shipping", "VALORANT" };
+        if (!names.Any(IsRunning)) return;
+
+        foreach (var name in names)
+        {
+            foreach (var p in Process.GetProcessesByName(name))
+            {
+                using (p)
+                {
+                    try
+                    {
+                        AppLog.Info($"結束程序 {name}（套用遊戲設定前）");
+                        p.Kill(entireProcessTree: false);
+                    }
+                    catch (InvalidOperationException) { }
+                    catch (Win32Exception ex) { AppLog.Error($"無法結束 {name}", ex); }
+                }
+            }
+        }
+
+        var sw = Stopwatch.StartNew();
+        while (names.Any(IsRunning))
+        {
+            if (sw.Elapsed > TimeSpan.FromSeconds(15))
+            {
+                throw new UserFacingException("無法關閉 VALORANT",
+                    "套用設定前需要先關閉遊戲，但 VALORANT 沒有成功關閉。\n請手動關閉遊戲後再試一次。\n\n沒有任何設定被修改。");
+            }
+            await Task.Delay(100);
+        }
+    }
+
     /// <summary>把 VALORANT 的視窗叫到最前面（例如被縮小了）。只是切換視窗，不會碰遊戲本身。</summary>
     public void BringValorantToFront()
     {

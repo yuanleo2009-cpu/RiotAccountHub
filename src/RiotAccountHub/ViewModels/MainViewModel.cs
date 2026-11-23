@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RiotAccountHub.Core;
 using RiotAccountHub.Core.Cards;
+using RiotAccountHub.Core.GameSettings;
 using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Storage;
@@ -28,6 +29,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly SettingsRepository _settingsRepo;
     private readonly IDialogService _dialogs;
     private readonly PlayerCardCache? _cards;
+    private readonly SettingsSync? _settingsSync;
 
     private AppSettings _settings = new();
 
@@ -43,7 +45,8 @@ public sealed partial class MainViewModel : ObservableObject
         AccountRepository accountRepo,
         SettingsRepository settingsRepo,
         IDialogService dialogs,
-        PlayerCardCache? cards = null)
+        PlayerCardCache? cards = null,
+        SettingsSync? settingsSync = null)
     {
         _paths = paths;
         _switcher = switcher;
@@ -52,6 +55,7 @@ public sealed partial class MainViewModel : ObservableObject
         _settingsRepo = settingsRepo;
         _dialogs = dialogs;
         _cards = cards;
+        _settingsSync = settingsSync;
 
         Accounts.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
     }
@@ -457,6 +461,14 @@ public sealed partial class MainViewModel : ObservableObject
     // ==================================================================
     // 按鈕：Riot Client 路徑、開啟資料夾
     // ==================================================================
+
+    /// <summary>打開「同步遊戲設定」視窗</summary>
+    [RelayCommand]
+    private void OpenSettingsSync()
+    {
+        if (_settingsSync is null) return;
+        _dialogs.ShowSettingsSync(new SettingsSyncViewModel(_settingsSync, _dialogs));
+    }
 
     [RelayCommand]
     private void ChangeRiotClientPath() => PickClientPath();

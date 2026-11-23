@@ -39,6 +39,14 @@
             <!-- 上方標題列 -->
             <DockPanel Margin="28,22,28,14">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Margin="0,0,4,0"
+                            Command="{Binding OpenSettingsSyncCommand}"
+                            ToolTip="把一個帳號的鍵位、靈敏度、準星等設定套用到另一個帳號">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE765;" Style="{StaticResource ButtonIcon}" />
+                            <TextBlock Text="遊戲設定" />
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource GhostButton}" Margin="0,0,8,0"
                             Command="{Binding RestoreOriginalCommand}"
                             IsEnabled="{Binding HasOriginalBackup}"
