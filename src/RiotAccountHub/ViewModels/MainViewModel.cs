@@ -194,6 +194,7 @@ public sealed partial class MainViewModel : ObservableObject
                 _ = LoadCardArtAsync(card);
             }
             card.Refresh();
+            MaybeCaptureMainSettings(card);
 
             // 段位有變才馬上存檔；沒變的話最多 5 分鐘存一次「更新時間」
             if (changed || DateTime.UtcNow - _lastRankSaveUtc > TimeSpan.FromMinutes(5))
@@ -220,7 +221,185 @@ public sealed partial class MainViewModel : ObservableObject
         var path = _riot.FindClientPath(_settings.RiotClientPath);
         RiotClientPathText = path ?? "找不到（按「變更」手動選擇）";
         foreach (var card in Accounts) card.HasSnapshot = _switcher.HasSnapshot(card.Model.Id);
+        RefreshMainFlags();
     }
+
+    // ==================================================================
+    // 主帳號
+    // ==================================================================
+
+    /// <summary>目前的主帳號卡片；沒設定就是 null</summary>
+    private AccountCardViewModel? MainCard =>
+        _settings.MainAccountId is { } id ? Accounts.FirstOrDefault(a => a.Model.Id == id) : null;
+
+    private bool _mainCaptureRunning;
+
+    /// <summary>更新每張卡片的「主帳號」標籤，以及要不要顯示「套用主帳號設定」</summary>
+    private void RefreshMainFlags()
+    {
+        var main = MainCard;
+        foreach (var card in Accounts)
+        {
+            card.IsMain = card == main;
+            card.CanApplyMain = main is not null && card != main && _settingsSync is not null;
+        }
+    }
+
+    /// <summary>
+    /// 如果現在玩的是主帳號，就自動記下它的遊戲設定（最多 30 分鐘記一次）。
+    /// 失敗只寫記錄，不打擾使用者。
+    /// </summary>
+    private void MaybeCaptureMainSettings(AccountCardViewModel card)
+    {
+        if (_settingsSync is null || _mainCaptureRunning || card != MainCard || card.Model.Puuid is null) return;
+        var existing = _settingsSync.Store.MainProfile();
+        var sameMain = existing is not null && string.Equals(existing.SourcePuuid, card.Model.Puuid, StringComparison.OrdinalIgnoreCase);
+        if (sameMain && DateTime.UtcNow - existing!.CreatedUtc < TimeSpan.FromMinutes(30)) return;
+
+        _mainCaptureRunning = true;
+        var puuid = card.Model.Puuid;
+        var sync = _settingsSync;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await sync.CaptureMainAsync(puuid);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("自動記下主帳號設定失敗", ex);
+            }
+            finally
+            {
+                _mainCaptureRunning = false;
+            }
+        });
+    }
+
+    /// <summary>設為主帳號 / 取消主帳號</summary>
+    [RelayCommand]
+    private Task ToggleMainAsync(AccountCardViewModel card) => RunGuardedAsync(async () =>
+    {
+        if (card.IsMain)
+        {
+            _settings.MainAccountId = null;
+            _settingsRepo.Save(_settings);
+            _settingsSync?.Store.DeleteProfile(SettingsProfileStore.MainProfileId);
+            RefreshMainFlags();
+            return;
+        }
+
+        var previous = MainCard;
+        _settings.MainAccountId = card.Model.Id;
+        _settingsRepo.Save(_settings);
+        if (previous is not null)
+        {
+            // 換了主帳號，舊主帳號的設定就不能再當「主帳號設定」了
+            _settingsSync?.Store.DeleteProfile(SettingsProfileStore.MainProfileId);
+        }
+        RefreshMainFlags();
+
+        // 主帳號現在剛好登入著 → 馬上記下設定；不然就等下次玩主帳號時自動記
+        if (_settingsSync is not null && card.Model.Puuid is not null && await _switcher.IsCurrentlyLoggedInAsync(card.Model))
+        {
+            BeginBusy("記下主帳號設定");
+            BusyDetail = "正在讀取主帳號的鍵位、靈敏度、準星…";
+            await _settingsSync.CaptureMainAsync(card.Model.Puuid);
+            EndBusy();
+            _dialogs.ShowInfo("已設為主帳號",
+                $"「{card.RiotId}」已經設為主帳號，也記下了它目前的遊戲設定。\n\n" +
+                "其他帳號的卡片上會出現「套用主帳號設定」，按一下就會切換、套用、開始遊戲。\n" +
+                "之後玩主帳號時，程式也會自動更新記下的設定。");
+        }
+        else
+        {
+            _dialogs.ShowInfo("已設為主帳號",
+                $"「{card.RiotId}」已經設為主帳號。\n\n" +
+                "下一步：對主帳號按一次「啟動」，進到遊戲大廳後，程式會自動記下主帳號的設定（約 15 秒內）。\n" +
+                "之後其他帳號的「套用主帳號設定」就能使用了。");
+        }
+    });
+
+    /// <summary>
+    /// 一鍵「套用主帳號設定」：切換到這個帳號 → 等登入 → 套用主帳號的遊戲設定 → 開始遊戲
+    /// （遊戲設定只能寫進「目前登入中」的帳號，所以要先切換過去）
+    /// </summary>
+    [RelayCommand]
+    private Task ApplyMainSettingsAsync(AccountCardViewModel card) => RunGuardedAsync(async () =>
+    {
+        var main = MainCard;
+        if (_settingsSync is null || main is null) return;
+
+        var profile = _settingsSync.Store.MainProfile();
+        if (profile is null)
+        {
+            _dialogs.ShowInfo("還沒有主帳號的設定",
+                $"程式還沒記下主帳號「{main.RiotId}」的遊戲設定。\n\n" +
+                "請先對主帳號按一次「啟動」，進到遊戲大廳後，程式會在約 15 秒內自動記下。之後就能用這個按鈕了。");
+            return;
+        }
+        if (!card.HasSnapshot)
+        {
+            _dialogs.ShowInfo("這個帳號還沒有登入狀態", $"「{card.RiotId}」還沒有儲存登入狀態。\n請先按這張卡片上的「重新登入」。");
+            return;
+        }
+
+        var clientPath = EnsureClientPath();
+        if (clientPath is null) return;
+
+        var gameRunning = _switcher.IsGameRunning();
+        var message =
+            $"要把主帳號「{main.RiotId}」的遊戲設定（鍵位、靈敏度、準星…，{TimeText.FormatWhen(profile.CreatedUtc)} 記下的）\n" +
+            $"套用到「{card.RiotId}」，然後開始遊戲嗎？\n\n" +
+            $"・套用前會備份「{card.RiotId}」原本的設定，可以在「遊戲設定」裡還原。\n" +
+            "・帳號自己的紀錄（例如看過的公告）會保留。";
+        if (gameRunning) message += "\n・會先關閉目前正在執行的遊戲。";
+        if (!_dialogs.Confirm("套用主帳號設定", message, "套用並開始遊戲", "取消", warning: true)) return;
+
+        // 1. 切換到這個帳號（已經登入就不用）
+        IProgress<SwitchStep> progress;
+        if (await _switcher.IsCurrentlyLoggedInAsync(card.Model))
+        {
+            progress = BeginBusy($"{card.RiotId}：套用主帳號設定", SwitchStep.ApplyingSettings, SwitchStep.Launching);
+        }
+        else
+        {
+            progress = BeginBusy($"{card.RiotId}：套用主帳號設定",
+                SwitchStep.Closing, SwitchStep.Switching, SwitchStep.LoggingIn, SwitchStep.ApplyingSettings, SwitchStep.Launching);
+            await _switcher.SwitchAndStartClientAsync(card.Model.Id, clientPath, progress);
+
+            // 2. 等 Riot Client 用這個帳號登入
+            progress.Report(SwitchStep.LoggingIn);
+            if (!await _switcher.WaitForLoginAsync(TimeSpan.FromSeconds(60)))
+            {
+                throw new UserFacingException("沒有自動登入",
+                    $"Riot Client 打開了，但「{card.RiotId}」沒有自動登入（登入狀態可能過期了）。\n\n" +
+                    "請對這張卡片按「重新登入」更新登入狀態後再試。沒有修改任何遊戲設定。");
+            }
+        }
+
+        // 3. 再確認一次登入的是這個帳號，然後套用（遊戲開著的話會先被關掉）
+        var current = await _settingsSync.GetCurrentAccountAsync();
+        if (!card.Model.IsSameAccount(current))
+        {
+            throw new UserFacingException("登入的帳號不一樣",
+                $"Riot Client 現在登入的是「{current.RiotId}」，不是「{card.RiotId}」。為了安全，沒有套用任何設定。");
+        }
+        card.Model.Puuid ??= current.Puuid;
+
+        progress.Report(SwitchStep.ApplyingSettings);
+        await _settingsSync.ApplyAsync(profile, current.Puuid!);
+
+        // 4. 開始遊戲（設定已經寫好，進遊戲就是新設定）
+        progress.Report(SwitchStep.Launching);
+        await _switcher.AutoStartGameAsync(TimeSpan.FromSeconds(60));
+
+        MarkUsed(card);
+        OnGameSettingsChanged(new SettingsChange(current, profile.Name, Restored: false, Relaunched: true));
+        BusyNotice = $"已套用主帳號「{main.RiotId}」的設定，進到遊戲就是新的鍵位、靈敏度和準星";
+        await ShowCompletedAsync("完成！VALORANT 正在開啟。");
+        await Task.Delay(2000); // 讓使用者看清楚綠色提示
+    });
 
     // ==================================================================
     // 按鈕：啟動
@@ -460,7 +639,14 @@ public sealed partial class MainViewModel : ObservableObject
             _dialogs.ShowError("刪除失敗", "無法刪除快照檔案，請稍後再試。\n\n詳細資訊：" + ex.Message);
             return;
         }
+        if (card.IsMain)
+        {
+            _settings.MainAccountId = null;
+            _settingsRepo.Save(_settings);
+            _settingsSync?.Store.DeleteProfile(SettingsProfileStore.MainProfileId);
+        }
         Accounts.Remove(card);
+        RefreshMainFlags();
         SaveAccounts();
     }
 
@@ -719,6 +905,8 @@ public sealed partial class MainViewModel : ObservableObject
         SwitchStep.Switching => "切換中",
         SwitchStep.Launching => "啟動中",
         SwitchStep.Saving => "儲存中",
+        SwitchStep.LoggingIn => "登入中",
+        SwitchStep.ApplyingSettings => "套用設定",
         _ => step.ToString(),
     };
 
@@ -729,6 +917,8 @@ public sealed partial class MainViewModel : ObservableObject
         SwitchStep.Switching => "正在放入登入狀態…",
         SwitchStep.Launching => "正在開啟 Riot Client…",
         SwitchStep.Saving => "正在加密儲存登入狀態…",
+        SwitchStep.LoggingIn => "等待 Riot Client 自動登入…",
+        SwitchStep.ApplyingSettings => "正在備份並套用遊戲設定…",
         _ => "",
     };
 }

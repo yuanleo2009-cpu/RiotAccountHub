@@ -16,4 +16,10 @@ public sealed class AppSettings
     /// 預設關閉，由使用者在主畫面下方開啟。
     /// </summary>
     public bool AutoStartGame { get; set; }
+
+    /// <summary>
+    /// 主帳號的編號（Account.Id）。其他帳號的卡片上會出現「套用主帳號設定」按鈕。
+    /// 沒設定就是 null。
+    /// </summary>
+    public string? MainAccountId { get; set; }
 }

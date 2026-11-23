@@ -149,6 +149,41 @@ public sealed class AccountSwitcher
         return false;
     }
 
+    /// <summary>
+    /// 切換到指定帳號，但「只開 Riot Client、先不開遊戲」。
+    /// 用在「套用主帳號設定」：要先登入、套用設定，最後才開遊戲（遊戲開著的話會把舊設定寫回去）。
+    /// </summary>
+    public Task SwitchAndStartClientAsync(string accountId, string clientPath, IProgress<SwitchStep> progress) =>
+        RunExclusiveAsync(async () =>
+        {
+            var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
+
+            progress.Report(SwitchStep.Closing);
+            await _riot.CloseAllAsync(CloseTimeout);
+
+            progress.Report(SwitchStep.Switching);
+            await Task.Run(() =>
+            {
+                EnsureOriginalBackup();
+                _store.Apply(snapshot, _liveRoot, _items);
+            });
+
+            _riot.StartClient(clientPath);
+            AppLog.Info("已切換帳號並開啟 Riot Client（先不開遊戲）：" + accountId);
+        });
+
+    /// <summary>等 Riot Client 登入完成；逾時回傳 false（通常代表登入狀態過期）</summary>
+    public async Task<bool> WaitForLoginAsync(TimeSpan timeout)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (await _api.IsLoggedInAsync()) return true;
+            await Task.Delay(1000);
+        }
+        return false;
+    }
+
     /// <summary>切換到指定帳號的快照，並啟動 VALORANT</summary>
     public Task SwitchAndLaunchAsync(string accountId, string clientPath, IProgress<SwitchStep> progress) =>
         RunExclusiveAsync(async () =>
@@ -352,6 +387,10 @@ public enum SwitchStep
     Switching,
     Launching,
     Saving,
+    /// <summary>等 Riot Client 登入</summary>
+    LoggingIn,
+    /// <summary>套用遊戲設定</summary>
+    ApplyingSettings,
 }
 
 /// <summary>登入流程進行中：記住開始前的狀態（已加密），取消時放回去</summary>

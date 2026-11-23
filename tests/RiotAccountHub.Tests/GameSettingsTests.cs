@@ -136,6 +136,23 @@ public sealed class GameSettingsTests : IDisposable
     }
 
     [Fact]
+    public void 主帳號設定_固定編號_每次覆蓋同一份()
+    {
+        var store = new SettingsProfileStore(_temp.Root);
+        Assert.Null(store.MainProfile());
+
+        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.MainProfileId, Name = "主帳號設定（A）", SettingsJson = SourceJson });
+        store.SaveProfile(new SettingsProfile { Id = SettingsProfileStore.MainProfileId, Name = "主帳號設定（B）", SettingsJson = SourceJson });
+        store.SaveProfile(new SettingsProfile { Name = "一般設定檔", SettingsJson = SourceJson });
+
+        Assert.Equal("主帳號設定（B）", store.MainProfile()!.Name);
+        Assert.Equal(2, store.ListProfiles().Count);
+
+        store.DeleteProfile(SettingsProfileStore.MainProfileId);
+        Assert.Null(store.MainProfile());
+    }
+
+    [Fact]
     public void 設定檔裡沒有任何_token()
     {
         var store = new SettingsProfileStore(_temp.Root);

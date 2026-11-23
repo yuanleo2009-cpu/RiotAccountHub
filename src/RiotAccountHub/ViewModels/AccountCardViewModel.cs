@@ -67,6 +67,20 @@ public sealed partial class AccountCardViewModel : ObservableObject
     public string LastUsedText =>
         Model.LastUsedUtc is { } utc ? "上次使用：" + FormatWhen(utc) : "尚未從這裡啟動過";
 
+    // ---------------- 主帳號 ----------------
+
+    /// <summary>這張卡片是不是主帳號</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MainToggleText))]
+    private bool _isMain;
+
+    /// <summary>要不要在「啟動」旁邊顯示「套用主帳號設定」（有主帳號、而且自己不是主帳號）</summary>
+    [ObservableProperty]
+    private bool _canApplyMain;
+
+    /// <summary>卡片下方按鈕的文字</summary>
+    public string MainToggleText => IsMain ? "取消主帳號" : "設為主帳號";
+
     // ---------------- 遊戲設定 ----------------
 
     /// <summary>有沒有套用過遊戲設定檔</summary>

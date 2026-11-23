@@ -95,6 +95,28 @@ public sealed class SettingsSync
         return (who, tokens);
     }
 
+    /// <summary>
+    /// 自動記下「主帳號設定」：讀取目前登入帳號（必須是主帳號）的設定，
+    /// 存成固定編號的設定檔（每次覆蓋同一份）。
+    /// </summary>
+    public async Task<SettingsProfile> CaptureMainAsync(string mainPuuid)
+    {
+        var (who, tokens) = await RequireLoginAsync(mainPuuid);
+        var json = await _client.DownloadAsync(tokens);
+
+        var profile = new SettingsProfile
+        {
+            Id = SettingsProfileStore.MainProfileId,
+            Name = $"主帳號設定（{who.RiotId}）",
+            SourceRiotId = who.RiotId,
+            SourcePuuid = who.Puuid,
+            SettingsJson = json,
+        };
+        Store.SaveProfile(profile);
+        AppLog.Info("已自動記下主帳號設定");
+        return profile;
+    }
+
     /// <summary>匯出：讀取目前帳號的設定，存成本機設定檔</summary>
     public async Task<SettingsProfile> ExportAsync(string name, string expectedPuuid)
     {

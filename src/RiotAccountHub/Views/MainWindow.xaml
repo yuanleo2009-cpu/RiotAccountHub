@@ -142,6 +142,16 @@
 
                                         <!-- 標籤：登入方式、備註、警告 -->
                                         <WrapPanel Margin="0,8,0,0">
+                                            <!-- 主帳號標籤 -->
+                                            <Border Style="{StaticResource Tag}" Background="#33FFD978"
+                                                    Visibility="{Binding IsMain, Converter={StaticResource BoolToVisibility}}"
+                                                    ToolTip="主帳號：它的遊戲設定可以一鍵套用到其他帳號">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE735;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                                               Foreground="#FFD978" VerticalAlignment="Center" Margin="0,1,6,0" />
+                                                    <TextBlock Text="主帳號" FontSize="12" FontWeight="SemiBold" Foreground="#FFD978" />
+                                                </StackPanel>
+                                            </Border>
                                             <!-- 段位（自己設計的顏色標籤，不使用官方圖示） -->
                                             <Border Style="{StaticResource Tag}" ToolTip="{Binding RankToolTip}">
                                                 <StackPanel Orientation="Horizontal">
@@ -194,15 +204,43 @@
 
                                     <!-- 動作按鈕 -->
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="16,0,0,0">
-                                        <Button Style="{StaticResource PrimaryButton}" Height="44" MinWidth="200" FontSize="15"
-                                                Command="{Binding DataContext.LaunchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="&#xE768;" Style="{StaticResource ButtonIcon}" />
-                                                <TextBlock Text="啟動" />
-                                            </StackPanel>
-                                        </Button>
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <!-- 套用主帳號設定（有主帳號、而且這張不是主帳號時才顯示） -->
+                                            <Button Height="44" FontSize="14" Margin="0,0,8,0" Padding="14,0"
+                                                    Visibility="{Binding CanApplyMain, Converter={StaticResource BoolToVisibility}}"
+                                                    ToolTip="切換到這個帳號、套用主帳號的鍵位 / 靈敏度 / 準星，然後開始遊戲"
+                                                    Command="{Binding DataContext.ApplyMainSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                                        <Setter Property="Background" Value="#E61F232C" />
+                                                        <Setter Property="BorderBrush" Value="#80FFD978" />
+                                                    </Style>
+                                                </Button.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE735;" Style="{StaticResource ButtonIcon}" Foreground="#FFD978" />
+                                                    <TextBlock Text="套用主帳號設定" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource PrimaryButton}" Height="44" MinWidth="200" FontSize="15"
+                                                    Command="{Binding DataContext.LaunchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE768;" Style="{StaticResource ButtonIcon}" />
+                                                    <TextBlock Text="啟動" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Right">
+                                            <Button Style="{StaticResource GhostButton}" FontSize="13" Padding="8,5"
+                                                    ToolTip="主帳號的遊戲設定可以一鍵套用到其他帳號"
+                                                    Command="{Binding DataContext.ToggleMainCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE734;" Style="{StaticResource ButtonIcon}" FontSize="12" Margin="0,1,5,0" />
+                                                    <TextBlock Text="{Binding MainToggleText}" />
+                                                </StackPanel>
+                                            </Button>
                                             <Button Style="{StaticResource GhostButton}" FontSize="13" Padding="8,5"
                                                     ToolTip="登入狀態過期時，重新登入並更新"
                                                     Command="{Binding DataContext.ReloginCommand, RelativeSource={RelativeSource AncestorType=Window}}"
