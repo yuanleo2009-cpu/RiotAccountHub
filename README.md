@@ -4,6 +4,12 @@ Windows 上的 Valorant / Riot 帳號切換器。每個帳號登入一次並存�
 
 > 本專案與 Riot Games 無關，也沒有使用任何 Riot / VALORANT 的商標或圖示。
 
+## 下載
+
+到 [Releases](https://github.com/yuanleo2009-cpu/RiotAccountHub/releases/latest) 下載最新的 `RiotAccountHub-v*.zip`，解壓縮後照著裡面的 `安裝說明.txt` 做就好。
+
+要自己產生下載包：`powershell -ExecutionPolicy Bypass -File tools\make-package.ps1`（輸出在 `dist\`）。
+
 ## 運作原理
 
 跟開源專案 [TcNo Account Switcher](https://github.com/TCNOco/TcNo-Acc-Switcher) 的 Riot 切換方式相同：「登入狀態快照切換」。
