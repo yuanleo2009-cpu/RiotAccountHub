@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# 給朋友的下載包（tools/make-package.ps1 產生）
+/dist/
