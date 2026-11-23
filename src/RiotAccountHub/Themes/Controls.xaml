@@ -26,6 +26,13 @@
         <Setter Property="WindowCornerPreference" Value="Round" />
     </Style>
 
+    <!-- 對話框：不能調整大小、高度跟著內容、不佔工作列（「出現在主視窗正中間」要寫在各視窗上，樣式設不了） -->
+    <Style x:Key="Window.Dialog" TargetType="{x:Type ui:FluentWindow}" BasedOn="{StaticResource Window.App}">
+        <Setter Property="ResizeMode" Value="NoResize" />
+        <Setter Property="SizeToContent" Value="Height" />
+        <Setter Property="ShowInTaskbar" Value="False" />
+    </Style>
+
     <!-- ===================== 文字 ===================== -->
     <Style x:Key="Text.Base" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontFamily.Ui}" />
@@ -67,6 +74,50 @@
                 <ControlTemplate>
                     <Rectangle Margin="-2" RadiusX="6" RadiusY="6" StrokeThickness="2"
                                Stroke="{StaticResource Brush.Accent}" SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================== 轉圈圈（等待中） ===================== -->
+    <!-- 一個小圓環，上面有一段亮的弧線一直轉。只有看得見的時候才會轉，藏起來就停。 -->
+    <Style x:Key="Spinner" TargetType="Control">
+        <Setter Property="Width" Value="{StaticResource Size.Icon}" />
+        <Setter Property="Height" Value="{StaticResource Size.Icon}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Control">
+                    <Viewbox>
+                        <Grid Width="16" Height="16">
+                            <Ellipse Stroke="{TemplateBinding Foreground}" StrokeThickness="2" Opacity="0.25" />
+                            <Path x:Name="Arc" Stroke="{TemplateBinding Foreground}" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Data="M 8,1 A 7,7 0 0 1 15,8">
+                                <Path.RenderTransform>
+                                    <RotateTransform CenterX="8" CenterY="8" />
+                                </Path.RenderTransform>
+                            </Path>
+                        </Grid>
+                    </Viewbox>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsVisible" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="Spin">
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="Arc"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                         From="0" To="360" Duration="0:0:0.9" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="Spin" />
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -374,6 +425,187 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Dialog}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- ===================== 對話框零件 ===================== -->
+    <!-- 對話框底部的按鈕列：比內容區亮一階，上面一條細線（跟 Windows 11 的對話框一樣） -->
+    <Style x:Key="Dialog.Footer" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Brush.Surface1}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Stroke}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="{StaticResource Pad.DialogFooter}" />
+    </Style>
+    <!-- 對話框按鈕：寬度至少 96 -->
+    <Style x:Key="Btn.DialogPrimary" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource Btn.Primary}">
+        <Setter Property="MinWidth" Value="{StaticResource Size.ButtonMinWidth}" />
+    </Style>
+    <Style x:Key="Btn.DialogSecondary" TargetType="{x:Type ui:Button}" BasedOn="{StaticResource Btn.Secondary}">
+        <Setter Property="MinWidth" Value="{StaticResource Size.ButtonMinWidth}" />
+        <Setter Property="Margin" Value="{StaticResource Gap.Right8}" />
+    </Style>
+
+    <!-- 標題旁邊的圖示方塊（顏色由程式依種類設定） -->
+    <Style x:Key="Dialog.IconBox" TargetType="Border">
+        <Setter Property="Width" Value="{StaticResource Size.DialogIcon}" />
+        <Setter Property="Height" Value="{StaticResource Size.DialogIcon}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Card}" />
+        <Setter Property="Background" Value="{StaticResource Brush.Surface3}" />
+        <Setter Property="Margin" Value="{StaticResource Gap.Right16}" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+
+    <!-- 欄位上方的小標題 -->
+    <Style x:Key="Field.Label" TargetType="TextBlock" BasedOn="{StaticResource Text.CaptionSecondary}">
+        <Setter Property="Margin" Value="{StaticResource Gap.Bottom8}" />
+    </Style>
+
+    <!--
+      輸入框：深灰底、細邊框、圓角。
+        - 滑過：邊框亮一點
+        - 輸入中：邊框變淡紅，底部一條紅線淡入（150 毫秒）
+    -->
+    <Style x:Key="Input" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Body}" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+        <Setter Property="CaretBrush" Value="{StaticResource Brush.Text}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource Brush.Accent}" />
+        <Setter Property="Background" Value="{StaticResource Brush.Surface2}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Stroke}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Height" Value="{StaticResource Size.Button}" />
+        <Setter Property="Padding" Value="{StaticResource Pad.Input}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource Radius.Control}" SnapsToDevicePixels="True">
+                        <Grid>
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                            <Border x:Name="FocusLine" Height="2" VerticalAlignment="Bottom" Opacity="0"
+                                    Background="{StaticResource Brush.Accent}" CornerRadius="0,0,3,3" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brush.StrokeStrong}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brush.AccentStroke}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FocusLine" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="FocusLine" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Normal}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+      單選的選項按鈕（例如登入方式）：
+        - 平常：深灰底、細邊框
+        - 滑過：一層半透明白淡入
+        - 選中：淡紅底、紅框（150 毫秒）
+    -->
+    <Style x:Key="Choice" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{StaticResource FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Body}" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}" />
+        <Setter Property="Height" Value="{StaticResource Size.Button}" />
+        <Setter Property="Padding" Value="{StaticResource Pad.Choice}" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Focus.Ring}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid SnapsToDevicePixels="True">
+                        <Border x:Name="Bd" Background="{StaticResource Brush.Surface2}"
+                                BorderBrush="{StaticResource Brush.Stroke}" BorderThickness="1"
+                                CornerRadius="{StaticResource Radius.Control}" />
+                        <Border x:Name="CheckedLayer" Opacity="0" Background="{StaticResource Brush.AccentSoft}"
+                                BorderBrush="{StaticResource Brush.Accent}" BorderThickness="1"
+                                CornerRadius="{StaticResource Radius.Control}" />
+                        <Border x:Name="HoverLayer" Opacity="0" Background="{StaticResource Brush.HoverOverlay}"
+                                CornerRadius="{StaticResource Radius.Control}" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                          HorizontalAlignment="Center" RecognizesAccessKey="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverLayer" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverLayer" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Normal}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Text}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckedLayer" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{StaticResource Motion.Fast}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CheckedLayer" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{StaticResource Motion.Normal}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 錯誤提示（輸入不正確時） -->
+    <Style x:Key="Notice.Error" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Brush.AccentSoft}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.AccentStroke}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Radius.Control}" />
+        <Setter Property="Padding" Value="{StaticResource Pad.Notice}" />
     </Style>
 
     <!-- 成功提示框 -->

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.ViewModels;
 
@@ -66,7 +67,11 @@ public sealed partial class AccountEditViewModel : ObservableObject
 
     /// <summary>驗證失敗時顯示的紅字</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError))]
     private string _errorMessage = "";
+
+    /// <summary>有錯誤訊息時，畫面才顯示紅色提示框</summary>
+    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
     public LoginMethod SelectedMethod => Methods.FirstOrDefault(m => m.IsSelected)?.Value ?? LoginMethod.RiotAccount;
 
@@ -131,6 +136,21 @@ public sealed partial class AccountEditViewModel : ObservableObject
     }
 }
 
+/// <summary>
+/// 登入方式的小圖示（用通用圖示，不使用各家公司的商標）：
+/// Google = 地球、Facebook = 人群、Apple = 蘋果、帳密 = 鑰匙
+/// </summary>
+public static class LoginMethodIcons
+{
+    public static SymbolRegular For(LoginMethod method) => method switch
+    {
+        LoginMethod.Google => SymbolRegular.Globe20,
+        LoginMethod.Facebook => SymbolRegular.PeopleCommunity20,
+        LoginMethod.Apple => SymbolRegular.FoodApple20,
+        _ => SymbolRegular.Key20,
+    };
+}
+
 /// <summary>一個登入方式選項</summary>
 public sealed partial class LoginMethodOption : ObservableObject
 {
@@ -142,6 +162,9 @@ public sealed partial class LoginMethodOption : ObservableObject
 
     public LoginMethod Value { get; }
     public string Display { get; }
+
+    /// <summary>選項前面的小圖示（跟帳號卡片上的一樣）</summary>
+    public SymbolRegular Icon => LoginMethodIcons.For(Value);
 
     [ObservableProperty]
     private bool _isSelected;

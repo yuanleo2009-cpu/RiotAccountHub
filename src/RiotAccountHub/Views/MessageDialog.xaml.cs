@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using RiotAccountHub.Helpers;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.Views;
 
@@ -14,49 +15,43 @@ public enum DialogKind
     Error,
 }
 
-public partial class MessageDialog : Window
+public partial class MessageDialog : FluentWindow
 {
     private MessageDialog(string title, string message, DialogKind kind, string primaryText, string? secondaryText)
     {
         InitializeComponent();
-        DarkTitleBar.Apply(this);
+        AppTheme.PrepareWindow(this);
 
         TitleText.Text = title;
         MessageText.Text = message;
-        PrimaryButton.Content = primaryText;
+        PrimaryBtn.Content = primaryText;
 
         if (secondaryText is null)
         {
             // 只有一個按鈕：它同時是「確定」也是「取消(Esc)」
-            SecondaryButton.Visibility = Visibility.Collapsed;
-            PrimaryButton.IsCancel = true;
-            PrimaryButton.IsDefault = true;
+            SecondaryBtn.Visibility = Visibility.Collapsed;
+            PrimaryBtn.IsCancel = true;
+            PrimaryBtn.IsDefault = true;
         }
         else
         {
-            SecondaryButton.Content = secondaryText;
+            SecondaryBtn.Content = secondaryText;
             // 危險動作（例如刪除）不讓 Enter 直接確認，避免誤按
-            PrimaryButton.IsDefault = kind != DialogKind.Danger;
+            PrimaryBtn.IsDefault = kind != DialogKind.Danger;
         }
 
-        // 依種類設定圖示（Segoe 圖示字型的字碼）與顏色
-        var (glyph, brushKey) = kind switch
+        // 依種類設定圖示與顏色：一般是灰色，警告是黃色，危險 / 錯誤用紅色
+        var (symbol, foreground, background) = kind switch
         {
-            DialogKind.Info => ("", "TextSecondaryBrush"),
-            DialogKind.Question => ("", "TextSecondaryBrush"),
-            DialogKind.Warning => ("", "WarningBrush"),
-            DialogKind.Danger => ("", "AccentBrush"),
-            _ => ("", "AccentBrush"),
+            DialogKind.Info => (SymbolRegular.Info24, "Brush.TextSecondary", "Brush.Surface3"),
+            DialogKind.Question => (SymbolRegular.QuestionCircle24, "Brush.TextSecondary", "Brush.Surface3"),
+            DialogKind.Warning => (SymbolRegular.Warning24, "Brush.Warning", "Brush.WarningSoft"),
+            DialogKind.Danger => (SymbolRegular.Delete24, "Brush.Accent", "Brush.AccentSoft"),
+            _ => (SymbolRegular.ErrorCircle24, "Brush.Accent", "Brush.AccentSoft"),
         };
-        var brush = (Brush)FindResource(brushKey);
-        IconGlyph.Text = glyph;
-        IconGlyph.Foreground = brush;
-        IconBg.Background = (Brush)FindResource("Surface2Brush");
-
-        if (kind == DialogKind.Warning)
-        {
-            PrimaryButton.Style = (Style)FindResource("SecondaryButton");
-        }
+        IconSymbol.Symbol = symbol;
+        IconSymbol.Foreground = (Brush)FindResource(foreground);
+        IconBox.Background = (Brush)FindResource(background);
     }
 
     /// <summary>顯示訊息視窗。按主要按鈕回傳 true。</summary>

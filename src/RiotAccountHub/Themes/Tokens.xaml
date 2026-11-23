@@ -122,6 +122,9 @@
     <sys:Double x:Key="Size.Avatar">56</sys:Double>
     <sys:Double x:Key="Size.Icon">16</sys:Double>
     <sys:Double x:Key="Size.IconSmall">14</sys:Double>
+    <sys:Double x:Key="Size.DialogIcon">40</sys:Double>   <!-- 對話框標題旁的圖示方塊 -->
+    <sys:Double x:Key="Size.StepDot">24</sys:Double>      <!-- 登入步驟的數字圓點 -->
+    <sys:Double x:Key="Size.ButtonMinWidth">96</sys:Double>
 
     <!-- ===================== 間距（8 的倍數） ===================== -->
     <Thickness x:Key="Pad.Page">24,8,24,16</Thickness>        <!-- 頁面標題區 -->
@@ -135,6 +138,11 @@
     <Thickness x:Key="Pad.Button">16,0</Thickness>
     <Thickness x:Key="Pad.ButtonSmall">8,0</Thickness>
     <Thickness x:Key="Pad.Tag">8,0</Thickness>
+    <Thickness x:Key="Pad.Dialog">24,0,24,24</Thickness>      <!-- 對話框內容（上面已經有標題列的空間） -->
+    <Thickness x:Key="Pad.DialogFooter">24,16</Thickness>     <!-- 對話框底部按鈕列 -->
+    <Thickness x:Key="Pad.Input">8,0</Thickness>              <!-- 輸入框裡的文字 -->
+    <Thickness x:Key="Pad.Steps">16</Thickness>               <!-- 登入步驟的框 -->
+    <Thickness x:Key="Pad.Choice">16,0</Thickness>            <!-- 登入方式的選項 -->
 
     <Thickness x:Key="Gap.Right4">0,0,4,0</Thickness>
     <Thickness x:Key="Gap.Right8">0,0,8,0</Thickness>

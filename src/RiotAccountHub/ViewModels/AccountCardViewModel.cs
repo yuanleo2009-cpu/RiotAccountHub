@@ -66,13 +66,7 @@ public sealed partial class AccountCardViewModel : ObservableObject
     /// 登入方式標籤上的小圖示（用通用圖示，不使用各家公司的商標）：
     /// Google = 地球、Facebook = 人群、Apple = 蘋果、帳密 = 鑰匙
     /// </summary>
-    public SymbolRegular LoginMethodIcon => Model.LoginMethod switch
-    {
-        LoginMethod.Google => SymbolRegular.Globe20,
-        LoginMethod.Facebook => SymbolRegular.PeopleCommunity20,
-        LoginMethod.Apple => SymbolRegular.FoodApple20,
-        _ => SymbolRegular.Key20,
-    };
+    public SymbolRegular LoginMethodIcon => LoginMethodIcons.For(Model.LoginMethod);
 
     public string Note => Model.Note;
 
@@ -101,6 +95,11 @@ public sealed partial class AccountCardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsLaunching))]
     [NotifyPropertyChangedFor(nameof(ActivityText))]
     [NotifyPropertyChangedFor(nameof(ActivityToolTip))]
+    [NotifyPropertyChangedFor(nameof(IsInGame))]
+    [NotifyPropertyChangedFor(nameof(IsRunning))]
+    [NotifyPropertyChangedFor(nameof(IsNotRunning))]
+    [NotifyPropertyChangedFor(nameof(LaunchButtonText))]
+    [NotifyPropertyChangedFor(nameof(LaunchButtonToolTip))]
     private AccountActivity _activity = AccountActivity.None;
 
     /// <summary>這個帳號是不是「使用中」（卡片左側的紅線會亮著）</summary>
@@ -108,6 +107,30 @@ public sealed partial class AccountCardViewModel : ObservableObject
 
     /// <summary>正在啟動（狀態標籤上的小圓點會閃爍）</summary>
     public bool IsLaunching => Activity == AccountActivity.Launching;
+
+    /// <summary>VALORANT 正在用這個帳號執行</summary>
+    public bool IsInGame => Activity == AccountActivity.InGame;
+
+    /// <summary>「啟動中」或「遊戲中」：啟動按鈕會從「啟動」換成目前的狀態</summary>
+    public bool IsRunning => Activity is AccountActivity.Launching or AccountActivity.InGame;
+
+    public bool IsNotRunning => !IsRunning;
+
+    /// <summary>啟動按鈕上的字：平常是「啟動」，啟動後跟著狀態變成「啟動中」→「遊戲中」</summary>
+    public string LaunchButtonText => Activity switch
+    {
+        AccountActivity.Launching => "啟動中",
+        AccountActivity.InGame => "遊戲中",
+        _ => "啟動",
+    };
+
+    /// <summary>滑鼠移到啟動按鈕上的說明（平常不需要說明）</summary>
+    public string? LaunchButtonToolTip => Activity switch
+    {
+        AccountActivity.Launching => "正在開啟 Riot Client 和遊戲，請稍等",
+        AccountActivity.InGame => "這個帳號正在遊戲中（按一下會切回遊戲視窗）",
+        _ => null,
+    };
 
     public string ActivityText => Activity switch
     {

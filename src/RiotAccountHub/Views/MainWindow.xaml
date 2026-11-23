@@ -282,10 +282,38 @@
                                                                Command="{Binding DataContext.ApplyCopiedSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}" />
                                                     <!-- 啟動：卡片上最顯眼的按鈕 -->
-                                                    <ui:Button Style="{StaticResource Btn.Launch}"
-                                                               Icon="{ui:SymbolIcon Play20, Filled=True}" Content="啟動"
+                                                    <!-- 按鈕會跟著狀態變：「▶ 啟動」→（轉圈）「啟動中」→「遊戲中」 -->
+                                                    <ui:Button ToolTip="{Binding LaunchButtonToolTip}"
                                                                Command="{Binding DataContext.LaunchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                               CommandParameter="{Binding}" />
+                                                               CommandParameter="{Binding}">
+                                                        <ui:Button.Style>
+                                                            <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource Btn.Launch}">
+                                                                <Style.Triggers>
+                                                                    <!-- 啟動中 / 遊戲中：從實心紅換成「紅框 + 淡紅底」，表示這是狀態、不是待按的動作 -->
+                                                                    <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource Brush.AccentSoft}" />
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource Brush.AccentStroke}" />
+                                                                        <Setter Property="MouseOverBackground" Value="{StaticResource Brush.AccentSoft}" />
+                                                                        <Setter Property="PressedBackground" Value="{StaticResource Brush.AccentSoft}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ui:Button.Style>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Grid Margin="{StaticResource Gap.Right8}" VerticalAlignment="Center">
+                                                                <ui:SymbolIcon Symbol="Play20" Filled="True" FontSize="{StaticResource Size.Icon}"
+                                                                               Foreground="{StaticResource Brush.TextOnAccent}"
+                                                                               Visibility="{Binding IsNotRunning, Converter={StaticResource BoolToVis}}" />
+                                                                <Control Style="{StaticResource Spinner}" Foreground="{StaticResource Brush.TextOnAccent}"
+                                                                         Visibility="{Binding IsLaunching, Converter={StaticResource BoolToVis}}" />
+                                                                <ui:SymbolIcon Symbol="Games20" Filled="True" FontSize="{StaticResource Size.Icon}"
+                                                                               Foreground="{StaticResource Brush.TextOnAccent}"
+                                                                               Visibility="{Binding IsInGame, Converter={StaticResource BoolToVis}}" />
+                                                            </Grid>
+                                                            <TextBlock Text="{Binding LaunchButtonText}" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource Brush.TextOnAccent}" />
+                                                        </StackPanel>
+                                                    </ui:Button>
                                                 </StackPanel>
 
                                                 <!-- 次要動作：兩個常用的有文字，其他只放圖示（滑鼠移上去有說明） -->

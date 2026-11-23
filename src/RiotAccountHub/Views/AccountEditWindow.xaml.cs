@@ -1,15 +1,16 @@
 using System.Windows;
 using RiotAccountHub.Helpers;
 using RiotAccountHub.ViewModels;
+using Wpf.Ui.Controls;
 
 namespace RiotAccountHub.Views;
 
-public partial class AccountEditWindow : Window
+public partial class AccountEditWindow : FluentWindow
 {
     public AccountEditWindow()
     {
         InitializeComponent();
-        DarkTitleBar.Apply(this);
+        AppTheme.PrepareWindow(this);
     }
 
     private void OnSave(object sender, RoutedEventArgs e)

@@ -1,84 +1,114 @@
-<Window x:Class="RiotAccountHub.Views.AccountEditWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:RiotAccountHub.ViewModels"
-        Style="{StaticResource DarkWindowStyle}"
-        Title="{Binding WindowTitle}"
-        Width="500" SizeToContent="Height"
-        ResizeMode="NoResize" ShowInTaskbar="False"
-        WindowStartupLocation="CenterOwner"
-        FocusManager.FocusedElement="{Binding ElementName=NameBox}">
+<ui:FluentWindow x:Class="RiotAccountHub.Views.AccountEditWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:RiotAccountHub.ViewModels"
+                 xmlns:helpers="clr-namespace:RiotAccountHub.Helpers"
+                 Style="{StaticResource Window.Dialog}"
+                 WindowStartupLocation="CenterOwner"
+                 Title="{Binding WindowTitle}"
+                 Width="520"
+                 FocusManager.FocusedElement="{Binding ElementName=NameBox}">
     <!-- 填寫 / 編輯帳號資料。DataContext 是 AccountEditViewModel -->
-    <Grid Margin="28,24,28,24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <Border Background="{StaticResource Brush.BgTint}" />
 
-        <StackPanel>
-            <TextBlock Text="{Binding WindowTitle}" FontSize="20" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding Headline}" Margin="0,6,0,0" TextWrapping="Wrap"
-                       Foreground="{StaticResource TextSecondaryBrush}" />
-        </StackPanel>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <!-- Riot ID：名稱 # Tag -->
-        <Grid Grid.Row="1" Margin="0,22,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="120" />
-            </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Text="遊戲名稱" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="NameBox" Text="{Binding GameName, UpdateSourceTrigger=PropertyChanged}" MaxLength="40" />
+            <ui:TitleBar Grid.Row="0" ShowMinimize="False" ShowMaximize="False" />
+
+            <StackPanel Grid.Row="1" Margin="{StaticResource Pad.Dialog}">
+                <!-- 標題 -->
+                <DockPanel helpers:Motion.Enter="True">
+                    <Border Style="{StaticResource Dialog.IconBox}">
+                        <ui:SymbolIcon Symbol="PersonEdit24" FontSize="20" Foreground="{StaticResource Brush.TextSecondary}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="{Binding WindowTitle}" Style="{StaticResource Text.Title}" />
+                        <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.BodySecondary}" Margin="{StaticResource Gap.Top4}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Riot ID：名稱 # Tag -->
+                <Grid Margin="{StaticResource Gap.Top24}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="128" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="遊戲名稱" Style="{StaticResource Field.Label}" />
+                        <TextBox x:Name="NameBox" Style="{StaticResource Input}" MaxLength="40"
+                                 Text="{Binding GameName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="#" Style="{StaticResource Text.Title}" Foreground="{StaticResource Brush.TextMuted}"
+                               Margin="8,0,8,6" VerticalAlignment="Bottom" />
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Tag" Style="{StaticResource Field.Label}" />
+                        <TextBox Style="{StaticResource Input}" MaxLength="10"
+                                 Text="{Binding TagLine, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+                <DockPanel Margin="{StaticResource Gap.Top8}">
+                    <ui:SymbolIcon Symbol="Lightbulb16" FontSize="{StaticResource Size.IconSmall}" Foreground="{StaticResource Brush.TextMuted}"
+                                   Margin="{StaticResource Gap.Right4}" VerticalAlignment="Center" />
+                    <TextBlock Style="{StaticResource Text.CaptionSecondary}" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap"
+                               Text="小技巧：直接在「遊戲名稱」貼上「名字#Tag」會自動拆開。" />
+                </DockPanel>
+
+                <!-- 登入方式 -->
+                <TextBlock Text="登入方式" Style="{StaticResource Field.Label}" Margin="0,24,0,8" />
+                <ItemsControl ItemsSource="{Binding Methods}" Focusable="False" Margin="0,0,-8,-8">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:LoginMethodOption}">
+                            <RadioButton Style="{StaticResource Choice}" GroupName="LoginMethod"
+                                         IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="{StaticResource Size.Icon}"
+                                                   Margin="{StaticResource Gap.Right8}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Display}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- 備註 -->
+                <TextBlock Text="備註（選填，例如「主號」、「小號」）" Style="{StaticResource Field.Label}" Margin="0,16,0,8" />
+                <TextBox Style="{StaticResource Input}" MaxLength="40"
+                         Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" />
+
+                <!-- 輸入不正確時的提示（有動畫地展開） -->
+                <Border Style="{StaticResource Notice.Error}" Margin="{StaticResource Gap.Top16}"
+                        helpers:Motion.IsShown="{Binding HasError}" helpers:Motion.ShowMode="Expand">
+                    <DockPanel>
+                        <ui:SymbolIcon Symbol="ErrorCircle20" FontSize="{StaticResource Size.Icon}" Foreground="{StaticResource Brush.Accent}"
+                                       Margin="{StaticResource Gap.Right8}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource Text.Body}" TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="#" FontSize="20" Margin="10,0,10,8" VerticalAlignment="Bottom"
-                       Foreground="{StaticResource TextMutedBrush}" />
-            <StackPanel Grid.Column="2">
-                <TextBlock Text="Tag" Style="{StaticResource FieldLabel}" />
-                <TextBox Text="{Binding TagLine, UpdateSourceTrigger=PropertyChanged}" MaxLength="10" />
-            </StackPanel>
+
+            <!-- 按鈕 -->
+            <Border Grid.Row="2" Style="{StaticResource Dialog.Footer}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Content="取消" Style="{StaticResource Btn.DialogSecondary}" IsCancel="True" Click="OnCancel" />
+                    <ui:Button Content="儲存" Icon="{ui:SymbolIcon Save20}" Style="{StaticResource Btn.DialogPrimary}" IsDefault="True" Click="OnSave" />
+                </StackPanel>
+            </Border>
         </Grid>
-        <TextBlock Grid.Row="2" Margin="0,6,0,0" FontSize="12" Foreground="{StaticResource TextMutedBrush}"
-                   Text="小技巧：直接在「遊戲名稱」貼上「名字#Tag」會自動拆開。" />
-
-        <!-- 登入方式 -->
-        <StackPanel Grid.Row="3" Margin="0,18,0,0">
-            <TextBlock Text="登入方式" Style="{StaticResource FieldLabel}" />
-            <ItemsControl ItemsSource="{Binding Methods}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:LoginMethodOption}">
-                        <RadioButton Style="{StaticResource ChipRadio}" GroupName="LoginMethod"
-                                     Content="{Binding Display}"
-                                     IsChecked="{Binding IsSelected, Mode=TwoWay}" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
-
-        <!-- 備註 -->
-        <StackPanel Grid.Row="4" Margin="0,10,0,0">
-            <TextBlock Text="備註（選填，例如「主號」、「小號」）" Style="{StaticResource FieldLabel}" />
-            <TextBox Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" MaxLength="40" />
-        </StackPanel>
-
-        <!-- 錯誤訊息 + 按鈕 -->
-        <DockPanel Grid.Row="5" Margin="0,24,0,0">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Content="取消" MinWidth="96" Margin="0,0,10,0" IsCancel="True" Click="OnCancel" />
-                <Button Content="儲存" MinWidth="96" IsDefault="True" Style="{StaticResource PrimaryButton}" Click="OnSave" />
-            </StackPanel>
-            <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource AccentHoverBrush}"
-                       TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
-        </DockPanel>
     </Grid>
-</Window>
+</ui:FluentWindow>

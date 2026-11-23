@@ -1,37 +1,48 @@
-<Window x:Class="RiotAccountHub.Views.MessageDialog"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Style="{StaticResource DarkWindowStyle}"
-        Title="Riot Account Hub"
-        Width="480" SizeToContent="Height"
-        ResizeMode="NoResize" ShowInTaskbar="False"
-        WindowStartupLocation="CenterOwner">
-    <!-- 深色風格的訊息視窗（取代 Windows 預設的白色 MessageBox） -->
-    <Grid Margin="28,24,28,24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+<ui:FluentWindow x:Class="RiotAccountHub.Views.MessageDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:helpers="clr-namespace:RiotAccountHub.Helpers"
+                 Style="{StaticResource Window.Dialog}"
+                 WindowStartupLocation="CenterOwner"
+                 Title="Riot Account Hub"
+                 Width="480">
+    <!--
+      深色風格的訊息視窗（取代 Windows 預設的白色 MessageBox）。
+      結構：標題列（只有關閉鈕）→ 圖示 + 標題 + 內容 → 底部按鈕列。
+      圖示和顏色由程式依種類（提示 / 詢問 / 警告 / 危險 / 錯誤）設定。
+    -->
+    <Grid>
+        <Border Background="{StaticResource Brush.BgTint}" />
 
-        <!-- 圖示 + 標題 -->
-        <StackPanel Orientation="Horizontal">
-            <Border x:Name="IconBg" Width="36" Height="36" CornerRadius="18" Margin="0,0,12,0">
-                <TextBlock x:Name="IconGlyph" FontFamily="{StaticResource IconFont}" FontSize="18"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ui:TitleBar Grid.Row="0" ShowMinimize="False" ShowMaximize="False" />
+
+            <!-- 圖示 + 標題 + 訊息 -->
+            <DockPanel Grid.Row="1" Margin="{StaticResource Pad.Dialog}" helpers:Motion.Enter="True">
+                <Border x:Name="IconBox" Style="{StaticResource Dialog.IconBox}">
+                    <ui:SymbolIcon x:Name="IconSymbol" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel>
+                    <TextBlock x:Name="TitleText" Style="{StaticResource Text.Title}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="MessageText" Style="{StaticResource Text.BodySecondary}" Margin="{StaticResource Gap.Top8}"
+                               TextWrapping="Wrap" LineHeight="22" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- 按鈕 -->
+            <Border Grid.Row="2" Style="{StaticResource Dialog.Footer}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button x:Name="SecondaryBtn" Style="{StaticResource Btn.DialogSecondary}" IsCancel="True" Click="OnSecondary" />
+                    <ui:Button x:Name="PrimaryBtn" Style="{StaticResource Btn.DialogPrimary}" Click="OnPrimary" />
+                </StackPanel>
             </Border>
-            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
-                       TextWrapping="Wrap" MaxWidth="360" />
-        </StackPanel>
-
-        <!-- 訊息內容 -->
-        <TextBlock x:Name="MessageText" Grid.Row="1" Margin="0,16,0,0" TextWrapping="Wrap"
-                   Foreground="{StaticResource TextSecondaryBrush}" LineHeight="22" />
-
-        <!-- 按鈕 -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <Button x:Name="SecondaryButton" MinWidth="96" Margin="0,0,10,0" Click="OnSecondary" IsCancel="True" />
-            <Button x:Name="PrimaryButton" MinWidth="96" Click="OnPrimary" Style="{StaticResource PrimaryButton}" />
-        </StackPanel>
+        </Grid>
     </Grid>
-</Window>
+</ui:FluentWindow>

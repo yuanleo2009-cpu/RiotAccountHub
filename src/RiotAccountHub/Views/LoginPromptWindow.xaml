@@ -1,88 +1,120 @@
-<Window x:Class="RiotAccountHub.Views.LoginPromptWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Style="{StaticResource DarkWindowStyle}"
-        Title="Riot Account Hub - 等待登入"
-        Width="500" SizeToContent="Height"
-        ResizeMode="NoResize" Topmost="True"
-        WindowStartupLocation="CenterOwner">
+<ui:FluentWindow x:Class="RiotAccountHub.Views.LoginPromptWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:helpers="clr-namespace:RiotAccountHub.Helpers"
+                 Style="{StaticResource Window.Dialog}"
+                 WindowStartupLocation="CenterOwner"
+                 Title="Riot Account Hub - 等待登入"
+                 Width="520" Topmost="True" ShowInTaskbar="True">
     <!--
       「請在 Riot Client 登入」提示視窗。
       Topmost="True"：永遠在最上層，不會被 Riot Client 蓋住。
     -->
-    <Grid Margin="28,24,28,24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <ui:FluentWindow.Resources>
+        <!-- 步驟前面的數字圓點 -->
+        <Style x:Key="StepDot" TargetType="Border">
+            <Setter Property="Width" Value="{StaticResource Size.StepDot}" />
+            <Setter Property="Height" Value="{StaticResource Size.StepDot}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="{StaticResource Brush.Surface3}" />
+            <Setter Property="Margin" Value="{StaticResource Gap.Right16}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style x:Key="StepNumber" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </ui:FluentWindow.Resources>
 
-        <StackPanel Orientation="Horizontal">
-            <Border Width="40" Height="40" CornerRadius="20" Background="{StaticResource AccentSoftBrush}" Margin="0,0,14,0">
-                <TextBlock Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="18"
-                           Foreground="{StaticResource AccentBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <TextBlock x:Name="HeadlineText" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"
-                       TextWrapping="Wrap" MaxWidth="380" />
-        </StackPanel>
+    <Grid>
+        <Border Background="{StaticResource Brush.BgTint}" />
+        <Border Background="{StaticResource Brush.AccentGlow}" IsHitTestVisible="False" />
 
-        <!-- 三個步驟 -->
-        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,20,0,0" Padding="18,14">
-            <StackPanel>
-                <StackPanel.Resources>
-                    <Style x:Key="StepNumber" TargetType="Border">
-                        <Setter Property="Width" Value="24" />
-                        <Setter Property="Height" Value="24" />
-                        <Setter Property="CornerRadius" Value="12" />
-                        <Setter Property="Background" Value="{StaticResource Surface3Brush}" />
-                        <Setter Property="Margin" Value="0,0,12,0" />
-                        <Setter Property="VerticalAlignment" Value="Top" />
-                    </Style>
-                </StackPanel.Resources>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-                <DockPanel Margin="0,4">
-                    <Border Style="{StaticResource StepNumber}">
-                        <TextBlock Text="1" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <ui:TitleBar Grid.Row="0" ShowMinimize="False" ShowMaximize="False" />
+
+            <StackPanel Grid.Row="1" Margin="{StaticResource Pad.Dialog}">
+                <!-- 圖示 + 標題 -->
+                <DockPanel helpers:Motion.Enter="True">
+                    <Border Style="{StaticResource Dialog.IconBox}" Background="{StaticResource Brush.AccentSoft}">
+                        <ui:SymbolIcon Symbol="PersonArrowRight24" FontSize="20" Foreground="{StaticResource Brush.Accent}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock TextWrapping="Wrap" VerticalAlignment="Center">
-                        在 Riot Client 用要儲存的帳號登入<LineBreak />
-                        <Run Foreground="{StaticResource TextMutedBrush}" FontSize="13">Google、Facebook、Apple、帳密都可以</Run>
-                    </TextBlock>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="HeadlineText" Style="{StaticResource Text.Title}" TextWrapping="Wrap" />
+                        <TextBlock Style="{StaticResource Text.CaptionSecondary}" Margin="{StaticResource Gap.Top4}"
+                                   Text="跟著下面三步做，完成後回到這裡。" />
+                    </StackPanel>
                 </DockPanel>
-                <DockPanel Margin="0,10,0,4">
-                    <Border Style="{StaticResource StepNumber}" Background="{StaticResource AccentBrush}">
-                        <TextBlock Text="2" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock TextWrapping="Wrap" VerticalAlignment="Center">
-                        登入時<Run FontWeight="Bold" Foreground="{StaticResource AccentHoverBrush}">一定要勾選「保持登入」</Run><LineBreak />
-                        <Run Foreground="{StaticResource TextMutedBrush}" FontSize="13">沒勾的話，存下來的狀態無法自動登入</Run>
-                    </TextBlock>
-                </DockPanel>
-                <DockPanel Margin="0,10,0,4">
-                    <Border Style="{StaticResource StepNumber}">
-                        <TextBlock Text="3" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock TextWrapping="Wrap" VerticalAlignment="Center">
-                        看到 Riot Client 主畫面後，回來按「我登入好了」
-                    </TextBlock>
+
+                <!-- 三個步驟 -->
+                <Border Style="{StaticResource Panel}" CornerRadius="{StaticResource Radius.Card}"
+                        Padding="{StaticResource Pad.Steps}" Margin="{StaticResource Gap.Top24}"
+                        helpers:Motion.Enter="True">
+                    <StackPanel>
+                        <DockPanel>
+                            <Border Style="{StaticResource StepDot}">
+                                <TextBlock Text="1" Style="{StaticResource StepNumber}" />
+                            </Border>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Text="在 Riot Client 用要儲存的帳號登入" />
+                                <TextBlock Style="{StaticResource Text.CaptionSecondary}" Margin="{StaticResource Gap.Top4}"
+                                           Text="Google、Facebook、Apple、帳密都可以" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- 第 2 步最重要：用紅色標出來 -->
+                        <Border Background="{StaticResource Brush.AccentSoft}" BorderBrush="{StaticResource Brush.AccentStroke}"
+                                BorderThickness="1" CornerRadius="{StaticResource Radius.Control}"
+                                Padding="8" Margin="-8,16,-8,16">
+                            <DockPanel>
+                                <Border Style="{StaticResource StepDot}" Background="{StaticResource Brush.Accent}">
+                                    <TextBlock Text="2" Style="{StaticResource StepNumber}" Foreground="{StaticResource Brush.TextOnAccent}" />
+                                </Border>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" FontWeight="SemiBold">
+                                        登入時一定要勾選「保持登入」
+                                    </TextBlock>
+                                    <TextBlock Style="{StaticResource Text.CaptionSecondary}" Margin="{StaticResource Gap.Top4}"
+                                               Text="沒勾的話，存下來的狀態沒辦法自動登入" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <DockPanel>
+                            <Border Style="{StaticResource StepDot}">
+                                <TextBlock Text="3" Style="{StaticResource StepNumber}" />
+                            </Border>
+                            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                       Text="看到 Riot Client 主畫面後，回來按「我登入好了」" />
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 安心說明 -->
+                <DockPanel Margin="{StaticResource Gap.Top16}">
+                    <ui:SymbolIcon Symbol="ShieldCheckmark20" FontSize="{StaticResource Size.Icon}" Foreground="{StaticResource Brush.TextMuted}"
+                                   VerticalAlignment="Top" Margin="{StaticResource Gap.Right8}" />
+                    <TextBlock Style="{StaticResource Text.CaptionSecondary}" Foreground="{StaticResource Brush.TextMuted}" TextWrapping="Wrap"
+                               Text="本程式不會看到、也不會儲存你的密碼。這個視窗會一直保持在最上層，可以把它拖到旁邊。" />
                 </DockPanel>
             </StackPanel>
-        </Border>
 
-        <TextBlock Grid.Row="2" Margin="0,14,0,0" FontSize="12" TextWrapping="Wrap"
-                   Foreground="{StaticResource TextMutedBrush}"
-                   Text="這個視窗會一直保持在最上層，可以把它拖到旁邊。本程式不會看到或儲存你的密碼。" />
-
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
-            <Button Content="取消" MinWidth="96" Margin="0,0,10,0" IsCancel="True" Click="OnCancel" />
-            <Button MinWidth="140" Style="{StaticResource PrimaryButton}" Click="OnDone">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#xE73E;" Style="{StaticResource ButtonIcon}" />
-                    <TextBlock Text="我登入好了" />
+            <!-- 按鈕 -->
+            <Border Grid.Row="2" Style="{StaticResource Dialog.Footer}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Content="取消" Style="{StaticResource Btn.DialogSecondary}" IsCancel="True" Click="OnCancel" />
+                    <ui:Button Content="我登入好了" Icon="{ui:SymbolIcon Checkmark20}" Style="{StaticResource Btn.DialogPrimary}" Click="OnDone" />
                 </StackPanel>
-            </Button>
-        </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
-</Window>
+</ui:FluentWindow>
