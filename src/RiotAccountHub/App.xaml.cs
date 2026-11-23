@@ -105,7 +105,7 @@ public partial class App : Application
         AppLog.Error("未處理的錯誤", e.Exception);
         var (title, message) = e.Exception is UserFacingException ufe
             ? (ufe.Title, ufe.Message)
-            : ("發生未預期的錯誤", "很抱歉，程式發生了未預期的錯誤。\n\n詳細資訊：" + e.Exception.Message);
+            : ("發生未預期的錯誤", "很抱歉，程式發生了未預期的錯誤。\n\n" + FriendlyError.ReasonLine(e.Exception) + "\n\n詳細的錯誤內容已經寫進記錄檔。");
         new DialogService().ShowError(title, message);
         e.Handled = true;
     }

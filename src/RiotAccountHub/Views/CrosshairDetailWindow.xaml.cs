@@ -46,9 +46,9 @@ public partial class CrosshairDetailWindow : FluentWindow
         _owner.BackgroundMode = mode; // 網格上的預覽也一起換
     }
 
-    private void OnCopy(object sender, RoutedEventArgs e)
+    private async void OnCopy(object sender, RoutedEventArgs e)
     {
-        if (!_owner.TrySetClipboard(_item.Code)) return;
+        if (!await _owner.TrySetClipboardAsync(_item.Code)) return;
         Toast.Success(Snackbars, CrosshairsViewModel.CopiedTitle, CrosshairsViewModel.CopiedHint);
     }
 

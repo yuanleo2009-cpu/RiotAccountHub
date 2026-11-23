@@ -293,7 +293,7 @@ public sealed class RiotClientService
         }
         catch (Win32Exception ex)
         {
-            throw new UserFacingException("無法啟動 Riot Client", "啟動 Riot Client 失敗。\n\n詳細資訊：" + ex.Message, ex);
+            throw new UserFacingException("無法啟動 Riot Client", "啟動 Riot Client 失敗。\n\n" + FriendlyError.ReasonLine(ex), ex);
         }
     }
 }

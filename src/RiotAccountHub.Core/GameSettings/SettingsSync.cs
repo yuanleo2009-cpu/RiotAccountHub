@@ -178,10 +178,10 @@ public sealed class SettingsSync
                 throw new UserFacingException("套用失敗，而且自動還原也失敗",
                     "寫入遊戲設定時發生錯誤，自動改回原本設定也失敗了。\n\n" +
                     "別擔心，原本的設定已經備份在本機。等網路正常後，按「還原套用前的設定」就能改回去。\n\n" +
-                    "詳細資訊：" + ex.Message, ex);
+                    FriendlyError.ReasonLine(ex), ex);
             }
 
-            var (title, message) = ex is UserFacingException ufe ? (ufe.Title, ufe.Message) : ("套用失敗", ex.Message);
+            var (title, message) = ex is UserFacingException ufe ? (ufe.Title, ufe.Message) : ("套用失敗", "寫入遊戲設定時發生錯誤。\n\n" + FriendlyError.ReasonLine(ex));
             throw new UserFacingException(title, message + "\n\n帳號原本的設定已經自動改回去了。", ex);
         }
     }

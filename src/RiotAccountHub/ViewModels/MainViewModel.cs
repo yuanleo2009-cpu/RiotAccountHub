@@ -329,17 +329,33 @@ public sealed partial class MainViewModel : ObservableObject
     // 正在背景記錄設定的帳號（避免同一個帳號同時記兩次）
     private readonly HashSet<string> _capturing = new();
 
-    /// <summary>某個帳號自動記下的設定（主帳號沿用舊版資料當備用）</summary>
-    private SettingsProfile? ProfileOf(AccountCardViewModel card)
+    /// <summary>
+    /// 某個帳號自動記下的設定（主帳號沿用舊版資料當備用）。
+    /// 設定檔很大，讀檔放到背景執行緒，畫面不會卡住。
+    /// </summary>
+    private Task<SettingsProfile?> ProfileOfAsync(AccountCardViewModel card)
     {
-        if (_settingsSync is null) return null;
-        var profile = _settingsSync.Store.AccountProfile(card.Model.Id);
-        if (profile is null && card == MainCard) profile = _settingsSync.Store.LegacyMainProfile();
-        return profile;
+        if (_settingsSync is null) return Task.FromResult<SettingsProfile?>(null);
+        var store = _settingsSync.Store;
+        var accountId = card.Model.Id;
+        var isMain = card == MainCard;
+        return Task.Run(() =>
+        {
+            var profile = store.AccountProfile(accountId);
+            if (profile is null && isMain) profile = store.LegacyMainProfile();
+            return profile;
+        });
     }
 
-    /// <summary>更新每張卡片的主帳號 / 套用 / 還原按鈕，以及上方的「已複製」橫幅</summary>
-    private void RefreshSettingsFlags()
+    // 每次重新整理設定狀態就 +1；背景讀檔回來時，如果已經有更新的一次，就丟掉舊的結果
+    private int _settingsFlagsVersion;
+
+    /// <summary>
+    /// 更新每張卡片的主帳號 / 套用 / 還原按鈕，以及上方的「已複製」橫幅。
+    /// 不用讀檔的部分馬上更新；要讀設定檔（每個檔案約 200 KB）的部分放到背景執行緒，
+    /// 讀完再更新畫面，這樣按鈕按下去畫面不會卡一下。
+    /// </summary>
+    private async void RefreshSettingsFlags()
     {
         var main = MainCard;
         var copied = CopiedCard;
@@ -349,24 +365,69 @@ public sealed partial class MainViewModel : ObservableObject
             card.CanApplyMain = _settingsSync is not null && main is not null && card != main;
             card.IsCopySource = card == copied;
             card.CanApplyCopied = _settingsSync is not null && copied is not null && card != copied;
-            card.HasSettingsBackup = _settingsSync?.Store.LatestBackup(card.Model.Puuid) is not null;
         }
 
-        var profile = copied is null ? null : ProfileOf(copied);
-        HasCopiedSettings = copied is not null && profile is not null;
-        CopiedSettingsText = HasCopiedSettings
-            ? $"已複製「{copied!.RiotId}」的遊戲設定（記錄於 {TimeText.FormatWhen(profile!.CreatedUtc)}）· 到其他帳號按「套用設定」就能用"
-            : "";
+        var version = ++_settingsFlagsVersion;
+        if (_settingsSync is null)
+        {
+            foreach (var card in Accounts) card.HasSettingsBackup = false;
+            HasCopiedSettings = false;
+            CopiedSettingsText = "";
+            return;
+        }
+
+        // 先在畫面執行緒把要用的資料抄下來，背景執行緒只碰檔案
+        var store = _settingsSync.Store;
+        var cards = Accounts.ToList();
+        var puuids = cards.Select(c => c.Model.Puuid).ToList();
+        var copiedId = copied?.Model.Id;
+        var copiedIsMain = copied is not null && copied == main;
+
+        try
+        {
+            var (hasBackup, profile) = await Task.Run(() =>
+            {
+                var backups = puuids.Select(p => store.LatestBackup(p) is not null).ToList();
+                SettingsProfile? copiedProfile = null;
+                if (copiedId is not null)
+                {
+                    copiedProfile = store.AccountProfile(copiedId);
+                    if (copiedProfile is null && copiedIsMain) copiedProfile = store.LegacyMainProfile();
+                }
+                return (backups, copiedProfile);
+            });
+            if (version != _settingsFlagsVersion) return; // 讀檔期間又重新整理過了，用新的那次
+
+            for (var i = 0; i < cards.Count; i++) cards[i].HasSettingsBackup = hasBackup[i];
+            HasCopiedSettings = copied is not null && profile is not null;
+            CopiedSettingsText = HasCopiedSettings
+                ? $"已複製「{copied!.RiotId}」的遊戲設定（記錄於 {TimeText.FormatWhen(profile!.CreatedUtc)}）· 到其他帳號按「套用設定」就能用"
+                : "";
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("讀取遊戲設定狀態失敗", ex); // 只是按鈕狀態，失敗不打擾使用者
+        }
     }
 
     /// <summary>
     /// 玩某個帳號時，自動記下它的遊戲設定（每個帳號最多 30 分鐘記一次）。
     /// 這樣「複製設定」通常不用切換帳號，按一下就好。失敗只寫記錄，不打擾使用者。
     /// </summary>
-    private void MaybeCaptureSettings(AccountCardViewModel card)
+    private async void MaybeCaptureSettings(AccountCardViewModel card)
     {
         if (_settingsSync is null || card.Model.Puuid is null || _capturing.Contains(card.Model.Id)) return;
-        var existing = ProfileOf(card);
+        SettingsProfile? existing;
+        try
+        {
+            existing = await ProfileOfAsync(card);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("讀取遊戲設定紀錄失敗", ex);
+            return;
+        }
+        if (_capturing.Contains(card.Model.Id)) return; // 等待期間已經開始記錄了
         var fresh = existing is not null
             && string.Equals(existing.SourcePuuid, card.Model.Puuid, StringComparison.OrdinalIgnoreCase)
             && DateTime.UtcNow - existing.CreatedUtc < TimeSpan.FromMinutes(30);
@@ -464,12 +525,11 @@ public sealed partial class MainViewModel : ObservableObject
         _settingsRepo.Save(_settings);
         RefreshSettingsFlags();
 
-        var hint = ProfileOf(card) is null
+        var hint = await ProfileOfAsync(card) is null
             ? "下一步：對主帳號按一次「啟動」，進到遊戲大廳後，程式會在約 15 秒內自動記下它的設定。"
             : "主帳號的設定已經記錄過了，可以直接到其他帳號按「套用主帳號」。";
         _dialogs.ShowInfo("已設為主帳號",
             $"「{card.RiotId}」已經設為主帳號。\n\n{hint}\n之後每次玩主帳號，程式都會自動更新記下的設定。");
-        await Task.CompletedTask;
     });
 
     /// <summary>一鍵套用主帳號設定</summary>
@@ -478,7 +538,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var main = MainCard;
         if (main is null) return;
-        var profile = ProfileOf(main);
+        var profile = await ProfileOfAsync(main);
         if (profile is null)
         {
             _dialogs.ShowInfo("還沒有主帳號的設定",
@@ -507,7 +567,7 @@ public sealed partial class MainViewModel : ObservableObject
             await RunOnAccountAsync(card, $"複製 {card.RiotId} 的設定", SwitchStep.ReadingSettings, startGame: false,
                 current => _settingsSync.CaptureAccountAsync(card.Model.Id, current.Puuid!));
         }
-        else if (ProfileOf(card) is null)
+        else if (await ProfileOfAsync(card) is null)
         {
             var ok = _dialogs.Confirm("還沒有這個帳號的設定紀錄",
                 $"程式還沒記下「{card.RiotId}」的遊戲設定。\n\n" +
@@ -538,7 +598,7 @@ public sealed partial class MainViewModel : ObservableObject
     private Task ApplyCopiedSettingsAsync(AccountCardViewModel card) => RunGuardedAsync(async () =>
     {
         var source = CopiedCard;
-        var profile = source is null ? null : ProfileOf(source);
+        var profile = source is null ? null : await ProfileOfAsync(source);
         if (source is null || profile is null) return;
         await ApplyProfileAsync(card, profile, $"「{source.RiotId}」");
     });
@@ -557,7 +617,7 @@ public sealed partial class MainViewModel : ObservableObject
             $"套用到「{card.RiotId}」，然後開始遊戲嗎？\n\n" +
             $"・套用前會備份「{card.RiotId}」原本的設定，卡片上可以按「還原設定」改回去。\n" +
             "・帳號自己的紀錄（例如看過的公告）會保留。";
-        if (_switcher.IsGameRunning()) message += "\n・會先關閉目前正在執行的遊戲。";
+        if (await IsGameRunningAsync()) message += "\n・會先關閉目前正在執行的遊戲。";
         if (!_dialogs.Confirm("套用遊戲設定", message, "套用並開始遊戲", "取消", warning: true)) return;
 
         var current = await RunOnAccountAsync(card, $"{card.RiotId}：套用設定", SwitchStep.ApplyingSettings, startGame: true,
@@ -582,7 +642,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var message = $"要把「{card.RiotId}」的遊戲設定改回 {TimeText.FormatWhen(backup.CreatedUtc)} 的備份，然後開始遊戲嗎？\n（{backup.Name}）";
-        if (_switcher.IsGameRunning()) message += "\n\n會先關閉目前正在執行的遊戲。";
+        if (await IsGameRunningAsync()) message += "\n\n會先關閉目前正在執行的遊戲。";
         if (!_dialogs.Confirm("還原遊戲設定", message, "還原並開始遊戲", "取消", warning: true)) return;
 
         var current = await RunOnAccountAsync(card, $"{card.RiotId}：還原設定", SwitchStep.ApplyingSettings, startGame: true,
@@ -625,7 +685,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (!ConfirmCloseGame()) return;
+        if (!await ConfirmCloseGameAsync()) return;
 
         var progress = BeginBusy($"切換到 {card.RiotId}", SwitchStep.Closing, SwitchStep.Switching, SwitchStep.Launching);
         await _switcher.SwitchAndLaunchAsync(card.Model.Id, clientPath, progress);
@@ -830,7 +890,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _dialogs.ShowError("刪除失敗", "無法刪除快照檔案，請稍後再試。\n\n詳細資訊：" + ex.Message);
+            _dialogs.ShowError("刪除失敗", "無法刪除快照檔案，請稍後再試。\n\n" + FriendlyError.ReasonLine(ex));
             return;
         }
         // 刪掉的帳號如果是主帳號 / 複製來源，一起清掉；它自動記下的設定也刪掉
@@ -917,7 +977,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _dialogs.ShowError("無法開啟資料夾", ex.Message);
+            AppLog.Error("無法開啟資料夾", ex);
+            _dialogs.ShowError("無法開啟資料夾", "Windows 沒辦法打開這個資料夾：\n" + _paths.DataRoot);
         }
     }
 
@@ -954,10 +1015,13 @@ public sealed partial class MainViewModel : ObservableObject
         return picked;
     }
 
+    /// <summary>遊戲有沒有在執行（查詢處理程序清單放到背景，不卡畫面）</summary>
+    private Task<bool> IsGameRunningAsync() => Task.Run(_switcher.IsGameRunning);
+
     /// <summary>遊戲正在執行的話，先問使用者能不能關掉</summary>
-    private bool ConfirmCloseGame()
+    private async Task<bool> ConfirmCloseGameAsync()
     {
-        if (!_switcher.IsGameRunning()) return true;
+        if (!await IsGameRunningAsync()) return true;
         return _dialogs.Confirm("遊戲正在執行", "切換帳號需要關閉目前正在執行的遊戲。\n\n確定要關閉遊戲並切換嗎？", "關閉並切換", "取消", warning: true);
     }
 
@@ -1078,8 +1142,8 @@ public sealed partial class MainViewModel : ObservableObject
             AppLog.Error("未預期的錯誤", ex);
             EndBusy();
             _dialogs.ShowError("發生未預期的錯誤",
-                "很抱歉，發生了未預期的錯誤。\n\n詳細資訊：" + ex.Message +
-                "\n\n記錄檔位置：\n" + Path.Combine(_paths.LogsDir, "app.log"));
+                "很抱歉，發生了未預期的錯誤。\n\n" + FriendlyError.ReasonLine(ex) +
+                "\n\n詳細的錯誤內容已經寫進記錄檔：\n" + Path.Combine(_paths.LogsDir, "app.log"));
         }
         finally
         {

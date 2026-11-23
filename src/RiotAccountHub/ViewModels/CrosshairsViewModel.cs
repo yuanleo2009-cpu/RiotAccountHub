@@ -112,9 +112,9 @@ public sealed partial class CrosshairsViewModel : ObservableObject
 
     /// <summary>複製代碼到剪貼簿</summary>
     [RelayCommand]
-    private void Copy(CrosshairItemViewModel item)
+    private async Task CopyAsync(CrosshairItemViewModel item)
     {
-        if (TrySetClipboard(item.Code))
+        if (await TrySetClipboardAsync(item.Code))
         {
             Notify(CopiedTitle, CopiedHint);
             AppLog.Info("已複製準星代碼");
@@ -215,8 +215,11 @@ public sealed partial class CrosshairsViewModel : ObservableObject
         return q.Length == 0 || item.Name.Contains(q, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>寫入剪貼簿（剪貼簿被其他程式佔用時會重試幾次）</summary>
-    public bool TrySetClipboard(string text)
+    /// <summary>
+    /// 寫入剪貼簿（剪貼簿被其他程式佔用時會重試幾次）。
+    /// 重試之間用 await 等待，不會讓畫面卡住。
+    /// </summary>
+    public async Task<bool> TrySetClipboardAsync(string text)
     {
         for (var i = 0; i < 5; i++)
         {
@@ -227,7 +230,7 @@ public sealed partial class CrosshairsViewModel : ObservableObject
             }
             catch (System.Runtime.InteropServices.COMException)
             {
-                Thread.Sleep(50);
+                await Task.Delay(50);
             }
         }
         _dialogs.ShowError("無法複製", "剪貼簿正被其他程式使用，請稍後再試一次。");

@@ -25,11 +25,11 @@ public static class Toast
             {
                 Filled = true,
                 FontSize = 24,
-                Foreground = app?.TryFindResource("Brush.Success") as Brush,
             },
             Timeout = ShowTime,
             IsCloseButtonEnabled = true,
         };
+        if (app?.TryFindResource("Brush.Success") is Brush success && snackbar.Icon is SymbolIcon icon) icon.Foreground = success;
         if (app?.TryFindResource("Brush.Surface3") is Brush background) snackbar.Background = background;
         if (app?.TryFindResource("Brush.StrokeStrong") is Brush border) snackbar.BorderBrush = border;
         if (app?.TryFindResource("Brush.Text") is Brush text)

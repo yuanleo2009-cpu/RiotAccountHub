@@ -72,7 +72,7 @@ public sealed class SnapshotStore
             throw new UserFacingException(
                 "無法讀取登入檔案",
                 "讀取 Riot Client 的登入檔案時失敗，可能是 Riot Client 還沒完全關閉，或檔案被其他程式（例如防毒軟體）鎖住。\n\n" +
-                "沒有任何檔案被修改。請稍後再試一次。\n\n詳細資訊：" + ex.Message, ex);
+                "沒有任何檔案被修改。請稍後再試一次。\n\n" + FriendlyError.ReasonLine(ex), ex);
         }
 
         var plain = new byte[Magic.Length + zipBytes.Length];
@@ -162,7 +162,7 @@ public sealed class SnapshotStore
                 throw new UserFacingException(
                     "切換失敗",
                     "無法讀取目前的 Riot Client 登入檔案，可能是 Riot Client 還沒完全關閉，或檔案被其他程式鎖住。\n\n" +
-                    "沒有任何檔案被修改。請稍後再試一次。\n\n詳細資訊：" + ex.Message, ex);
+                    "沒有任何檔案被修改。請稍後再試一次。\n\n" + FriendlyError.ReasonLine(ex), ex);
             }
             TestHook?.Invoke("backed-up");
         }
@@ -199,14 +199,14 @@ public sealed class SnapshotStore
                     "寫入 Riot Client 登入檔案時發生錯誤，自動還原也失敗了。\n\n" +
                     "你切換前的檔案已經完整保留在：\n" + rollback + "\n\n" +
                     "請確認 Riot Client 已關閉後，把裡面的資料夾內容複製回：\n" + liveRoot + "\n\n" +
-                    "或是使用「還原原本狀態」。\n\n詳細資訊：" + ex.Message, ex);
+                    "或是使用「還原原本狀態」。\n\n" + FriendlyError.ReasonLine(ex), ex);
             }
 
             TryDeleteDirectory(session);
             throw new UserFacingException(
                 "切換失敗",
                 "寫入 Riot Client 登入檔案時發生錯誤，已經自動還原成切換前的狀態。\n\n" +
-                "可能原因：Riot Client 沒有完全關閉，或檔案被防毒軟體鎖住。請稍後再試一次。\n\n詳細資訊：" + ex.Message, ex);
+                "可能原因：Riot Client 沒有完全關閉，或檔案被防毒軟體鎖住。請稍後再試一次。\n\n" + FriendlyError.ReasonLine(ex), ex);
         }
 
         TryDeleteDirectory(session);
@@ -277,7 +277,7 @@ public sealed class SnapshotStore
         }
         catch (InvalidDataException ex)
         {
-            throw new UserFacingException("快照檔案已損毀", "這個快照的內容已損毀，無法使用。\n請對這個帳號按「重新登入」。\n\n詳細資訊：" + ex.Message, ex);
+            throw new UserFacingException("快照檔案已損毀", "這個快照的內容已損毀，無法使用。\n請對這個帳號按「重新登入」。\n\n" + FriendlyError.ReasonLine(ex), ex);
         }
     }
 

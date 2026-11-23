@@ -66,7 +66,7 @@ public partial class WebBrowserWindow : FluentWindow
         catch (Exception ex)
         {
             AppLog.Error("內建瀏覽器開啟失敗", ex);
-            FallbackToExternal("內建瀏覽器開啟失敗，改用預設瀏覽器開啟。\n\n詳細資訊：" + ex.Message);
+            FallbackToExternal("內建瀏覽器開啟失敗，改用預設瀏覽器開啟。");
         }
     }
 
