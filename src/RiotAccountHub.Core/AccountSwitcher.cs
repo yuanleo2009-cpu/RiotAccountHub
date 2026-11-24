@@ -227,11 +227,11 @@ public sealed class AccountSwitcher
     }
 
     // Riot Client 開好之後，連續這麼久都停在登入畫面，就判定「存起來的登入狀態失效了」
-    private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(20);
 
     /// <summary>
     /// 切換帳號後，確認 Riot Client 有沒有自動登入（只問本機的 Riot Client，每 2 秒一次）。
-    /// 正常情況下 Riot Client 一開好就會自動登入；如果它開好了卻一直停在登入畫面，
+    /// 正常情況下 Riot Client 開好後幾秒內就會自動登入；如果它開好了卻一直沒有登入，
     /// 代表這個帳號存起來的登入狀態已經失效（最常見的原因：在 Riot Client 或遊戲裡按了「登出」）。
     /// </summary>
     public async Task<AutoLoginResult> WatchAutoLoginAsync(TimeSpan timeout, CancellationToken ct = default)
@@ -240,8 +240,8 @@ public sealed class AccountSwitcher
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (sw.Elapsed < timeout)
         {
-            var status = await _api.GetLoginStatusAsync(ct);
-            if (tracker.Observe(status.State, sw.Elapsed) is { } result)
+            var state = await _api.GetAuthorizationStateAsync(ct);
+            if (tracker.Observe(state, sw.Elapsed) is { } result)
             {
                 if (result == AutoLoginResult.NeedsLogin)
                 {

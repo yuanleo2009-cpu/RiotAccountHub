@@ -243,6 +243,22 @@ public sealed class RiotLocalApi
     }
 
     /// <summary>
+    /// 切換帳號後，判斷「Riot Client 有沒有自動登入」用的狀態（看 /rso-auth/v1/authorization）：
+    ///   - 回 200：已經登入
+    ///   - 有回應、但不是 200：Riot Client 開著，可是還沒登入（例如停在登入畫面）
+    ///   - 完全沒回應：連不上（Riot Client 還在開，或已經關掉）
+    ///
+    /// 這裡故意不用 GetLoginStatusAsync（/rso-auth/v1/session）：
+    /// 那個網址在 Riot Client 顯示登入畫面時不一定回 404，會把「停在登入畫面」誤當成已登入。
+    /// </summary>
+    public async Task<ApiLoginState> GetAuthorizationStateAsync(CancellationToken ct = default)
+    {
+        var (status, _) = await GetAsync("/rso-auth/v1/authorization", ct);
+        if (status is null) return ApiLoginState.Unreachable;
+        return status == HttpStatusCode.OK ? ApiLoginState.LoggedIn : ApiLoginState.NotLoggedIn;
+    }
+
+    /// <summary>
     /// 請 Riot Client 開始 VALORANT，效果等於在 Riot 介面按「開始遊戲」。
     ///
     /// 為什麼需要：Riot 用伺服器端的功能開關（autoLaunch.disabled = true）關掉了
