@@ -1,6 +1,6 @@
 ﻿# 產生「給朋友的下載包」：一個 zip，裡面有程式和安裝說明
 #
-#   Riot Account Hub v1.0.0.zip
+#   RiotAccountHub-v1.0.1.zip
 #     └─ Riot Account Hub\
 #          ├─ RiotAccountHub.exe   （單一檔案，不需要另外安裝 .NET）
 #          └─ 安裝說明.txt
