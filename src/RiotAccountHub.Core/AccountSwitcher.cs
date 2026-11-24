@@ -226,30 +226,34 @@ public sealed class AccountSwitcher
         return false;
     }
 
-    // Riot Client 開好之後，連續這麼久都停在登入畫面，就判定「存起來的登入狀態失效了」
-    private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(20);
+    // Riot Client 連續這麼久都「停在登入畫面」，就判定存起來的登入狀態失效了。
+    // （正常自動登入時，Riot Client 開好後大約 4 秒內就登入完成，不會停在登入畫面）
+    private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(8);
+
+    // 沒有明確停在登入畫面、只是「一直沒登入」的時候，要等久一點才判定
+    private static readonly TimeSpan NotLoggedInGrace = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// 切換帳號後，確認 Riot Client 有沒有自動登入（只問本機的 Riot Client，每 2 秒一次）。
+    /// 切換帳號後，確認 Riot Client 有沒有自動登入（只問本機的 Riot Client，每秒一次）。
     /// 正常情況下 Riot Client 開好後幾秒內就會自動登入；如果它開好了卻一直沒有登入，
     /// 代表這個帳號存起來的登入狀態已經失效（最常見的原因：在 Riot Client 或遊戲裡按了「登出」）。
     /// </summary>
     public async Task<AutoLoginResult> WatchAutoLoginAsync(TimeSpan timeout, CancellationToken ct = default)
     {
-        var tracker = new AutoLoginTracker(LoginPageGrace);
+        var tracker = new AutoLoginTracker(LoginPageGrace, NotLoggedInGrace);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (sw.Elapsed < timeout)
         {
-            var state = await _api.GetAuthorizationStateAsync(ct);
-            if (tracker.Observe(state, sw.Elapsed) is { } result)
+            var signal = await _api.GetAutoLoginSignalAsync(ct);
+            if (tracker.Observe(signal, sw.Elapsed) is { } result)
             {
                 if (result == AutoLoginResult.NeedsLogin)
                 {
-                    AppLog.Info("切換後 Riot Client 停在登入畫面：這個帳號存起來的登入狀態已經失效，需要重新登入");
+                    AppLog.Info("切換後 Riot Client 是登出的狀態：這個帳號存起來的登入已經失效，需要重新登入");
                 }
                 return result;
             }
-            await Task.Delay(2000, ct);
+            await Task.Delay(1000, ct);
         }
         return AutoLoginResult.Unknown;
     }
@@ -294,6 +298,25 @@ public sealed class AccountSwitcher
             _riot.StartClient(clientPath);
             AppLog.Info("已清空登入狀態並開啟 Riot Client，等待使用者登入");
             return new PendingLogin(previous);
+        });
+
+    /// <summary>
+    /// 登入流程中途重來一次：關閉 Riot Client → 清空登入狀態 → 再打開登入畫面。
+    /// 用在「這次登入沒有勾保持登入」的時候，使用者不用自己去 Riot Client 裡找登出。
+    /// 流程開始前的狀態還留在 PendingLogin 裡，之後按取消一樣放得回去。
+    /// </summary>
+    public Task RestartLoginAsync(string clientPath, IProgress<SwitchStep> progress) =>
+        RunExclusiveAsync(async () =>
+        {
+            progress.Report(SwitchStep.Closing);
+            await CloseAllInBackgroundAsync();
+
+            progress.Report(SwitchStep.Clearing);
+            await Task.Run(() => _store.Apply(null, _liveRoot, _items)); // null = 清空
+
+            progress.Report(SwitchStep.Launching);
+            _riot.StartClient(clientPath);
+            AppLog.Info("這次登入沒有勾保持登入：已清空並重新開啟登入畫面");
         });
 
     /// <summary>登入流程第 2 步：問 Riot Client 目前有沒有登入、有沒有勾保持登入</summary>

@@ -55,9 +55,10 @@ public partial class MessageDialog : FluentWindow
     }
 
     /// <summary>顯示訊息視窗。按主要按鈕回傳 true。</summary>
-    public static bool Show(Window? owner, string title, string message, DialogKind kind, string primaryText, string? secondaryText)
+    /// <param name="onTop">保持在所有視窗的最上層（用在主視窗可能被別的程式蓋住的提醒）</param>
+    public static bool Show(Window? owner, string title, string message, DialogKind kind, string primaryText, string? secondaryText, bool onTop = false)
     {
-        var dialog = new MessageDialog(title, message, kind, primaryText, secondaryText);
+        var dialog = new MessageDialog(title, message, kind, primaryText, secondaryText) { Topmost = onTop };
         if (owner is not null)
         {
             dialog.Owner = owner;

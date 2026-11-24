@@ -17,10 +17,24 @@ public sealed class DialogService : IDialogService
     public void ShowError(string title, string message) =>
         MessageDialog.Show(Owner(), title, message, DialogKind.Error, "確定", null);
 
-    public bool Confirm(string title, string message, string confirmText, string cancelText, bool danger = false, bool warning = false)
+    public bool Confirm(string title, string message, string confirmText, string cancelText, bool danger = false, bool warning = false, bool bringToFront = false)
     {
         var kind = danger ? DialogKind.Danger : warning ? DialogKind.Warning : DialogKind.Question;
-        return MessageDialog.Show(Owner(), title, message, kind, confirmText, cancelText);
+        if (bringToFront) BringOwnerToFront();
+        return MessageDialog.Show(Owner(), title, message, kind, confirmText, cancelText, onTop: bringToFront);
+    }
+
+    /// <summary>把主視窗叫到最前面（例如它被 Riot Client 的視窗蓋住，或被縮小了）</summary>
+    private static void BringOwnerToFront()
+    {
+        var window = Owner();
+        if (window is null) return;
+
+        if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        window.Activate();
+        // Windows 有時不讓背景的程式搶走焦點；先設成最上層再取消，視窗就會浮到其他視窗上面
+        window.Topmost = true;
+        window.Topmost = false;
     }
 
     public bool ShowLoginPrompt(string headline)

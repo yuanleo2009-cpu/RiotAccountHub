@@ -744,7 +744,7 @@ public sealed partial class MainViewModel : ObservableObject
     ///   4. 新增：填寫帳號資料；重新登入：直接更新快照
     /// 中途取消的話，會把開始前的登入狀態放回去。
     /// </summary>
-    private async Task RunLoginFlowAsync(AccountCardViewModel? existing)
+    private async Task RunLoginFlowAsync(AccountCardViewModel? existing, bool skipIntro = false)
     {
         var clientPath = EnsureClientPath();
         if (clientPath is null) return;
@@ -752,7 +752,8 @@ public sealed partial class MainViewModel : ObservableObject
         var intro = existing is null
             ? "接下來程式會：\n\n1. 關閉 Riot Client（和正在執行的遊戲）\n2. 暫時清空目前的登入狀態（會先備份）\n3. 打開 Riot Client 讓你登入新的帳號\n\n準備好了嗎？"
             : $"接下來程式會關閉 Riot Client，並打開登入畫面，讓你重新登入「{existing.RiotId}」。\n\n準備好了嗎？";
-        if (!_dialogs.Confirm(existing is null ? "新增帳號" : "重新登入", intro, "開始", "取消")) return;
+        // skipIntro：使用者剛剛已經在「現在不能啟動這個帳號」的視窗按了「重新登入」，不用再問一次
+        if (!skipIntro && !_dialogs.Confirm(existing is null ? "新增帳號" : "重新登入", intro, "開始", "取消")) return;
         CancelAutoStartGame(); // 等一下登入新帳號時，不能自動把遊戲開起來
 
         // ---- 步驟 1 ----
@@ -779,14 +780,22 @@ public sealed partial class MainViewModel : ObservableObject
                 _dialogs.ShowInfo("還沒有偵測到登入", "Riot Client 目前顯示還沒有登入。\n請先在 Riot Client 完成登入，看到主畫面後再按「我登入好了」。");
                 continue;
             }
-            if (status.PersistLogin == false &&
-                !_dialogs.Confirm(
-                    "好像沒有勾選「保持登入」",
-                    "Riot Client 回報這次登入「沒有」勾選保持登入，這樣存下來的快照之後無法自動登入。\n\n" +
-                    "建議做法：在 Riot Client 右上角的個人選單登出，重新登入時記得勾選「保持登入」，再回來按「我登入好了」。",
-                    "仍然儲存", "我去重新登入", warning: true))
+            if (status.PersistLogin == false)
             {
-                continue;
+                // 沒勾「保持登入」：存下來也沒辦法自動登入。程式沒辦法替使用者勾（Riot 的登入頁面不開放給外部程式操作），
+                // 所以改成登入後馬上檢查，沒勾就自動回到登入畫面讓使用者重來一次
+                var redo = _dialogs.Confirm(
+                    "這次登入沒有勾「保持登入」",
+                    "Riot Client 回報這次登入沒有勾選「保持登入」（Stay signed in），這樣存下來的登入之後沒辦法自動登入。\n\n" +
+                    "按「重新登入一次」，程式會幫你把 Riot Client 回到登入畫面。這次請先勾「保持登入」，再登入。",
+                    "重新登入一次", "仍然儲存", warning: true);
+                if (redo)
+                {
+                    var again = BeginBusy("回到登入畫面", SwitchStep.Closing, SwitchStep.Clearing, SwitchStep.Launching);
+                    await _switcher.RestartLoginAsync(clientPath, again);
+                    EndBusy();
+                    continue;
+                }
             }
 
             // 自動抓 Riot ID（抓不到也沒關係，之後讓使用者手動輸入）
@@ -1184,13 +1193,13 @@ public sealed partial class MainViewModel : ObservableObject
             if (_pendingLaunch?.AccountId == card.Model.Id) _pendingLaunch = null;
             card.Activity = AccountActivity.None;
 
-            var relogin = _dialogs.Confirm("需要重新登入",
-                $"Riot Client 沒有自動登入「{card.RiotId}」，這個帳號存起來的登入狀態已經失效了。\n\n" +
-                "最常見的原因：在 Riot Client 或遊戲裡按了「登出」。登出會讓 Riot 把這份登入作廢，之後就沒辦法自動登入。\n" +
-                "（想關遊戲或換帳號，用這個程式就好，不用按登出。）\n\n" +
-                "要現在重新登入這個帳號嗎？",
-                "重新登入", "稍後再說", warning: true);
-            if (relogin) await ReloginAsync(card);
+            // 這時候畫面上通常是 Riot Client 的登入視窗，所以要把提醒叫到最前面，使用者才看得到
+            var relogin = _dialogs.Confirm("現在不能啟動這個帳號",
+                $"Riot Client 是登出的狀態：「{card.RiotId}」存起來的登入已經失效，沒辦法自動登入。\n" +
+                "（最常見的原因：在 Riot Client 或遊戲裡按過「登出」。以後想關遊戲或換帳號，用這個程式就好。）\n\n" +
+                "需要重新登入一次。按「重新登入」，程式會幫你打開登入畫面；登入前請先勾「保持登入」（Stay signed in）。",
+                "重新登入", "稍後再說", warning: true, bringToFront: true);
+            if (relogin) await RunGuardedAsync(() => RunLoginFlowAsync(existing: card, skipIntro: true));
         }
         catch (OperationCanceledException)
         {

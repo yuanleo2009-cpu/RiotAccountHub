@@ -86,22 +86,55 @@ public sealed class RiotLocalApi
         var (status, json) = await GetAsync("/rso-auth/v1/session", ct);
         if (status == HttpStatusCode.NotFound) return ApiLoginStatus.NotLoggedIn;
         if (status != HttpStatusCode.OK || json is null) return ApiLoginStatus.Unreachable;
+        return ParseLoginStatus(json);
+    }
 
+    /// <summary>
+    /// 解讀 /rso-auth/v1/session 的內容。
+    ///
+    /// 注意：Riot Client 停在登入畫面時，這個網址一樣回 200，只是裡面的 type 是 "needs_credentials"；
+    /// 真的登入完成時 type 才是 "authenticated"。所以不能只看狀態碼，要看 type。
+    /// （Riot 定義的 type：needs_credentials、needs_password、needs_multifactor_verification、
+    ///   authenticated、error、unknown_authentication_response）
+    /// 沒有 type 欄位（例如 Riot 改了格式）時，維持舊的判斷：當成已登入。
+    /// </summary>
+    internal static ApiLoginStatus ParseLoginStatus(string json)
+    {
         bool? persist = null;
+        var type = ReadSessionType(json, out persist);
+        if (type is not null && !string.Equals(type, "authenticated", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiLoginStatus.NotLoggedIn;
+        }
+        return ApiLoginStatus.LoggedIn(persist);
+    }
+
+    /// <summary>Riot Client 是不是正停在登入畫面、等使用者輸入帳號（session 的 type 是 needs_credentials）</summary>
+    internal static bool IsAskingForCredentials(string sessionJson) =>
+        string.Equals(ReadSessionType(sessionJson, out _), "needs_credentials", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>讀出 session 內容裡的 type 和 persistLogin；格式不對就都當作不知道（null）</summary>
+    private static string? ReadSessionType(string json, out bool? persist)
+    {
+        persist = null;
         try
         {
             using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
             if (doc.RootElement.TryGetProperty("persistLogin", out var p) &&
                 p.ValueKind is JsonValueKind.True or JsonValueKind.False)
             {
                 persist = p.GetBoolean();
             }
+            return doc.RootElement.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
+                ? t.GetString()
+                : null;
         }
         catch (JsonException)
         {
-            // 格式不對就當作不知道
+            return null; // 格式不對就當作不知道
         }
-        return ApiLoginStatus.LoggedIn(persist);
     }
 
     /// <summary>
@@ -243,19 +276,22 @@ public sealed class RiotLocalApi
     }
 
     /// <summary>
-    /// 切換帳號後，判斷「Riot Client 有沒有自動登入」用的狀態（看 /rso-auth/v1/authorization）：
-    ///   - 回 200：已經登入
-    ///   - 有回應、但不是 200：Riot Client 開著，可是還沒登入（例如停在登入畫面）
+    /// 切換帳號後，判斷「Riot Client 有沒有自動登入」用的訊號：
+    ///   - /rso-auth/v1/authorization 回 200：已經登入（「自動開始遊戲」也是看這個，實測可靠）
     ///   - 完全沒回應：連不上（Riot Client 還在開，或已經關掉）
-    ///
-    /// 這裡故意不用 GetLoginStatusAsync（/rso-auth/v1/session）：
-    /// 那個網址在 Riot Client 顯示登入畫面時不一定回 404，會把「停在登入畫面」誤當成已登入。
+    ///   - 還沒登入，而且 session 的 type 是 needs_credentials：Riot Client 正停在登入畫面
+    ///   - 其他：Riot Client 開著，但還沒登入（可能還在啟動）
     /// </summary>
-    public async Task<ApiLoginState> GetAuthorizationStateAsync(CancellationToken ct = default)
+    public async Task<AutoLoginSignal> GetAutoLoginSignalAsync(CancellationToken ct = default)
     {
-        var (status, _) = await GetAsync("/rso-auth/v1/authorization", ct);
-        if (status is null) return ApiLoginState.Unreachable;
-        return status == HttpStatusCode.OK ? ApiLoginState.LoggedIn : ApiLoginState.NotLoggedIn;
+        var (authorization, _) = await GetAsync("/rso-auth/v1/authorization", ct);
+        if (authorization is null) return AutoLoginSignal.Unreachable;
+        if (authorization == HttpStatusCode.OK) return AutoLoginSignal.LoggedIn;
+
+        var (session, json) = await GetAsync("/rso-auth/v1/session", ct);
+        return session == HttpStatusCode.OK && json is not null && IsAskingForCredentials(json)
+            ? AutoLoginSignal.AtLoginPage
+            : AutoLoginSignal.NotLoggedIn;
     }
 
     /// <summary>

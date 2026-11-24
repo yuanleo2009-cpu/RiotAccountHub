@@ -16,7 +16,11 @@ public interface IDialogService
     void ShowError(string title, string message);
 
     /// <summary>需要使用者確認；按確認回傳 true</summary>
-    bool Confirm(string title, string message, string confirmText, string cancelText, bool danger = false, bool warning = false);
+    /// <param name="bringToFront">
+    /// 主視窗可能被別的視窗（例如 Riot Client）蓋住時設成 true：
+    /// 會先把主視窗叫到前面，而且這個確認視窗會保持在最上層，使用者才看得到。
+    /// </param>
+    bool Confirm(string title, string message, string confirmText, string cancelText, bool danger = false, bool warning = false, bool bringToFront = false);
 
     /// <summary>「請在 Riot Client 登入」提示；按「我登入好了」回傳 true，按取消回傳 false</summary>
     bool ShowLoginPrompt(string headline);
