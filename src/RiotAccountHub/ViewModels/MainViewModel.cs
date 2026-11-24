@@ -52,6 +52,9 @@ public sealed partial class MainViewModel : ObservableObject
     // 目前正在等待的「自動開始遊戲」（同一時間只留一個）
     private CancellationTokenSource? _autoStartCts;
 
+    // 切換帳號後，在背景確認「Riot Client 有沒有自動登入」的那個等待（同一時間只留一個）
+    private CancellationTokenSource? _loginWatchCts;
+
     public MainViewModel(
         AppPaths paths,
         AccountSwitcher switcher,
@@ -680,6 +683,13 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private Task LaunchAsync(AccountCardViewModel card) => RunGuardedAsync(async () =>
     {
+        // 這個帳號正在遊戲中（按鈕上寫的是「遊戲中」）：再按一次是「關閉遊戲」，會先問過
+        if (card.IsInGame && await Task.Run(_switcher.IsValorantRunning))
+        {
+            await CloseGameAsync(card);
+            return;
+        }
+
         if (!card.HasSnapshot)
         {
             _dialogs.ShowInfo("這個帳號還沒有登入狀態", $"「{card.RiotId}」還沒有儲存登入狀態。\n請先按這張卡片上的「重新登入」。");
@@ -709,6 +719,7 @@ public sealed partial class MainViewModel : ObservableObject
         await _switcher.SwitchAndLaunchAsync(card.Model.Id, clientPath, progress);
         MarkUsed(card);
         StartAutoStartGame();
+        StartLoginWatch(card); // 在背景確認 Riot Client 有沒有自動登入，沒有的話提醒重新登入
 
         await ShowCompletedAsync(AutoStartGame
             ? "已啟動！Riot Client 登入完成後會自動開始遊戲。"
@@ -1101,7 +1112,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 取消還在背景等待的「自動開始遊戲」。
+    /// 取消還在背景等待的「自動開始遊戲」，以及「確認有沒有自動登入」。
     /// 開始別的流程（新增帳號、重新登入、還原、套用設定）之前要先取消，
     /// 不然使用者在 Riot Client 登入新帳號的那一刻，背景那個等待會把遊戲開起來。
     /// </summary>
@@ -1109,6 +1120,86 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _autoStartCts?.Cancel();
         _autoStartCts = null;
+        CancelLoginWatch();
+    }
+
+    // ==================================================================
+    // 遊戲中再按一次：關閉遊戲
+    // ==================================================================
+
+    /// <summary>
+    /// 關閉正在執行的 VALORANT（只關遊戲，Riot Client 保持開著、帳號保持登入）。
+    /// 一定會先問過使用者；Vanguard 不會被碰。
+    /// </summary>
+    private async Task CloseGameAsync(AccountCardViewModel card)
+    {
+        var confirmed = _dialogs.Confirm("關閉遊戲",
+            $"「{card.RiotId}」正在遊戲中。\n\n確定要關閉 VALORANT 嗎？\n如果正在對戰，關掉遊戲可能會被當成中離。",
+            "關閉遊戲", "取消", warning: true);
+        if (!confirmed) return;
+
+        CancelAutoStartGame(); // 不能讓還在背景等待的「自動開始遊戲」又把遊戲開起來
+        await _switcher.CloseGameAsync();
+        AppLog.Info("已依使用者要求關閉 VALORANT");
+
+        // 遊戲關了，Riot Client 還登入著這個帳號：卡片馬上改成「已登入」
+        if (_pendingLaunch?.AccountId == card.Model.Id) _pendingLaunch = null;
+        card.Activity = AccountActivity.LoggedIn;
+    }
+
+    // ==================================================================
+    // 切換後確認有沒有自動登入
+    // ==================================================================
+
+    /// <summary>
+    /// 切換帳號後，在背景確認 Riot Client 有沒有自動登入。
+    /// 如果它開好了卻停在登入畫面（存起來的登入狀態失效了），就提醒使用者重新登入。
+    /// </summary>
+    private void StartLoginWatch(AccountCardViewModel card)
+    {
+        CancelLoginWatch();
+        var cts = new CancellationTokenSource();
+        _loginWatchCts = cts;
+        _ = WatchLoginAsync(card, cts.Token);
+    }
+
+    private void CancelLoginWatch()
+    {
+        _loginWatchCts?.Cancel();
+        _loginWatchCts = null;
+    }
+
+    private async Task WatchLoginAsync(AccountCardViewModel card, CancellationToken ct)
+    {
+        try
+        {
+            var result = await Task.Run(() => _switcher.WatchAutoLoginAsync(TimeSpan.FromSeconds(90), ct), ct);
+            if (result != AutoLoginResult.NeedsLogin) return;
+
+            // 等目前正在進行的流程（例如「已啟動」的完成畫面）結束，再跳出提醒
+            while (_flowRunning || IsBusy) await Task.Delay(300, ct);
+            if (ct.IsCancellationRequested || !Accounts.Contains(card)) return;
+
+            // Riot Client 停在登入畫面，遊戲不會開：卡片不要再顯示「啟動中」
+            if (_pendingLaunch?.AccountId == card.Model.Id) _pendingLaunch = null;
+            card.Activity = AccountActivity.None;
+
+            var relogin = _dialogs.Confirm("需要重新登入",
+                $"Riot Client 沒有自動登入「{card.RiotId}」，這個帳號存起來的登入狀態已經失效了。\n\n" +
+                "最常見的原因：在 Riot Client 或遊戲裡按了「登出」。登出會讓 Riot 把這份登入作廢，之後就沒辦法自動登入。\n" +
+                "（想關遊戲或換帳號，用這個程式就好，不用按登出。）\n\n" +
+                "要現在重新登入這個帳號嗎？",
+                "重新登入", "稍後再說", warning: true);
+            if (relogin) await ReloginAsync(card);
+        }
+        catch (OperationCanceledException)
+        {
+            // 使用者開始了別的流程（或又按了一次啟動），這次的確認不需要了
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("確認自動登入時發生錯誤", ex); // 只是附加的提醒，失敗不打擾使用者
+        }
     }
 
     /// <summary>記錄「上次使用時間」並存檔</summary>

@@ -128,7 +128,7 @@ public sealed partial class AccountCardViewModel : ObservableObject
     public string? LaunchButtonToolTip => Activity switch
     {
         AccountActivity.Launching => "正在開啟 Riot Client 和遊戲，請稍等",
-        AccountActivity.InGame => "這個帳號正在遊戲中（按一下會切回遊戲視窗）",
+        AccountActivity.InGame => "這個帳號正在遊戲中（再按一下可以關閉遊戲，會先問你）",
         _ => null,
     };
 

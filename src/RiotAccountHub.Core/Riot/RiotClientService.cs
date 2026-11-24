@@ -133,20 +133,27 @@ public sealed class RiotClientService
     /// 只關閉 VALORANT 遊戲（Riot Client 保持開著），用在套用遊戲設定前。
     /// Vanguard 不在這個清單裡，不會被關閉。
     /// </summary>
-    public async Task CloseValorantAsync()
+    public Task CloseValorantAsync() => CloseValorantAsync(
+        "（套用遊戲設定前）",
+        "套用設定前需要先關閉遊戲，但 VALORANT 沒有成功關閉。\n請手動關閉遊戲後再試一次。\n\n沒有任何設定被修改。");
+
+    /// <summary>
+    /// 只關閉 VALORANT 遊戲，並等到它真的結束（Riot Client 保持開著，Vanguard 不會被碰）。
+    /// note 會寫進記錄檔，說明是為了什麼關的；failureMessage 是關不掉時給使用者看的說明。
+    /// </summary>
+    public async Task CloseValorantAsync(string note, string failureMessage)
     {
         string[] names = { "VALORANT-Win64-Shipping", "VALORANT" };
         if (!AnyRunning(names)) return;
 
-        KillAll(names, "（套用遊戲設定前）");
+        KillAll(names, note);
 
         var sw = Stopwatch.StartNew();
         while (AnyRunning(names))
         {
             if (sw.Elapsed > TimeSpan.FromSeconds(15))
             {
-                throw new UserFacingException("無法關閉 VALORANT",
-                    "套用設定前需要先關閉遊戲，但 VALORANT 沒有成功關閉。\n請手動關閉遊戲後再試一次。\n\n沒有任何設定被修改。");
+                throw new UserFacingException("無法關閉 VALORANT", failureMessage);
             }
             await Task.Delay(100);
         }

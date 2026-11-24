@@ -80,6 +80,16 @@ public sealed class AccountSwitcher
     /// <summary>有沒有遊戲正在執行</summary>
     public bool IsGameRunning() => _riot.IsGameRunning();
 
+    /// <summary>VALORANT 遊戲本體有沒有在執行</summary>
+    public bool IsValorantRunning() => _riot.IsValorantRunning();
+
+    /// <summary>
+    /// 只關閉 VALORANT 遊戲（使用者在「遊戲中」的卡片上按了按鈕，並且確認過）。
+    /// Riot Client 保持開著、帳號保持登入；Vanguard 不會被碰。放在背景執行緒做，不卡畫面。
+    /// </summary>
+    public Task CloseGameAsync() => RunExclusiveAsync(() => Task.Run(() =>
+        _riot.CloseValorantAsync("（使用者按了關閉遊戲）", "VALORANT 沒有成功關閉，請手動關閉遊戲。")));
+
     /// <summary>
     /// 目前 Riot Client 登入的是哪個帳號、VALORANT 有沒有在執行（只讀本機資料）。
     /// Riot Client 沒開或還沒登入就回傳 null。放在背景執行緒做，不會卡住畫面。
@@ -214,6 +224,34 @@ public sealed class AccountSwitcher
             await Task.Delay(1000);
         }
         return false;
+    }
+
+    // Riot Client 開好之後，連續這麼久都停在登入畫面，就判定「存起來的登入狀態失效了」
+    private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// 切換帳號後，確認 Riot Client 有沒有自動登入（只問本機的 Riot Client，每 2 秒一次）。
+    /// 正常情況下 Riot Client 一開好就會自動登入；如果它開好了卻一直停在登入畫面，
+    /// 代表這個帳號存起來的登入狀態已經失效（最常見的原因：在 Riot Client 或遊戲裡按了「登出」）。
+    /// </summary>
+    public async Task<AutoLoginResult> WatchAutoLoginAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        var tracker = new AutoLoginTracker(LoginPageGrace);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            var status = await _api.GetLoginStatusAsync(ct);
+            if (tracker.Observe(status.State, sw.Elapsed) is { } result)
+            {
+                if (result == AutoLoginResult.NeedsLogin)
+                {
+                    AppLog.Info("切換後 Riot Client 停在登入畫面：這個帳號存起來的登入狀態已經失效，需要重新登入");
+                }
+                return result;
+            }
+            await Task.Delay(2000, ct);
+        }
+        return AutoLoginResult.Unknown;
     }
 
     /// <summary>切換到指定帳號的快照，並啟動 VALORANT</summary>
