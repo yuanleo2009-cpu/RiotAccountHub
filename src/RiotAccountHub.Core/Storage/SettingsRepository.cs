@@ -26,7 +26,14 @@ public sealed class SettingsRepository
         {
             // 設定壞掉不是大問題：另存起來，改用預設值
             AppLog.Error("settings.json 讀取失敗，改用預設設定", ex);
-            JsonStore.QuarantineCorruptFile(_paths.SettingsFile);
+            try
+            {
+                JsonStore.QuarantineCorruptFile(_paths.SettingsFile);
+            }
+            catch (Exception moveEx) when (moveEx is IOException or UnauthorizedAccessException)
+            {
+                AppLog.Error("壞掉的 settings.json 無法另存", moveEx);
+            }
             return new AppSettings();
         }
     }

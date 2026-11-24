@@ -118,12 +118,30 @@ public sealed class CrosshairLibrary
         if (!File.Exists(_file)) return new Data();
         try
         {
-            return JsonStore.Read<Data>(_file) ?? new Data();
+            var data = JsonStore.Read<Data>(_file) ?? new Data();
+
+            // 檔案被手動改過時可能缺欄位：先補好，之後才不會出錯
+            data.Mine ??= new();
+            data.FavoriteExampleIds ??= new();
+            data.Mine.RemoveAll(c => c is null);
+            foreach (var c in data.Mine)
+            {
+                c.Name ??= "";
+                c.Code ??= "";
+            }
+            return data;
         }
         catch (JsonException ex)
         {
             AppLog.Error("crosshairs.json 讀取失敗，已另存並重新開始", ex);
-            JsonStore.QuarantineCorruptFile(_file);
+            try
+            {
+                JsonStore.QuarantineCorruptFile(_file);
+            }
+            catch (Exception moveEx) when (moveEx is IOException or UnauthorizedAccessException)
+            {
+                AppLog.Error("壞掉的 crosshairs.json 無法另存", moveEx);
+            }
             return new Data();
         }
     }

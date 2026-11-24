@@ -228,7 +228,7 @@ public sealed partial class CrosshairsViewModel : ObservableObject
                 Clipboard.SetDataObject(text, copy: true);
                 return true;
             }
-            catch (System.Runtime.InteropServices.COMException)
+            catch (System.Runtime.InteropServices.ExternalException)
             {
                 await Task.Delay(50);
             }
@@ -243,9 +243,9 @@ public sealed partial class CrosshairsViewModel : ObservableObject
         {
             return Clipboard.ContainsText() ? Clipboard.GetText() : null;
         }
-        catch (System.Runtime.InteropServices.COMException)
+        catch (System.Runtime.InteropServices.ExternalException)
         {
-            return null;
+            return null; // 剪貼簿正被其他程式使用，當作沒有內容
         }
     }
 }

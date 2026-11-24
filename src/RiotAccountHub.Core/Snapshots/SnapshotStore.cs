@@ -78,6 +78,7 @@ public sealed class SnapshotStore
         var plain = new byte[Magic.Length + zipBytes.Length];
         Magic.CopyTo(plain, 0);
         zipBytes.CopyTo(plain, Magic.Length);
+        CryptographicOperations.ZeroMemory(zipBytes); // 已經抄到 plain 了，這份明文用不到就清掉
 
         try
         {
@@ -120,8 +121,15 @@ public sealed class SnapshotStore
     public IReadOnlyList<string> ListEntries(byte[] encrypted)
     {
         var zipBytes = Decrypt(encrypted);
-        using var zip = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
-        return zip.Entries.Where(e => !e.FullName.EndsWith('/')).Select(e => e.FullName).ToList();
+        try
+        {
+            using var zip = new ZipArchive(new MemoryStream(zipBytes), ZipArchiveMode.Read);
+            return zip.Entries.Where(e => !e.FullName.EndsWith('/')).Select(e => e.FullName).ToList();
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(zipBytes);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -148,7 +156,15 @@ public sealed class SnapshotStore
             // 步驟 1：解密並解壓到暫存區
             if (encrypted is not null)
             {
-                ExtractTo(Decrypt(encrypted), incoming, items);
+                var zipBytes = Decrypt(encrypted);
+                try
+                {
+                    ExtractTo(zipBytes, incoming, items);
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(zipBytes); // 用完就把記憶體裡的明文清掉
+                }
             }
             TestHook?.Invoke("extracted");
 
@@ -194,6 +210,7 @@ public sealed class SnapshotStore
             {
                 // 連還原都失敗：保留暫存區，告訴使用者備份在哪裡
                 AppLog.Error("自動還原也失敗，保留暫存區：" + rollback, rollbackEx);
+                MarkKeep(session); // 放一個記號，下次啟動清理暫存區時不會把它刪掉
                 throw new UserFacingException(
                     "切換失敗，而且無法自動還原",
                     "寫入 Riot Client 登入檔案時發生錯誤，自動還原也失敗了。\n\n" +
@@ -210,6 +227,54 @@ public sealed class SnapshotStore
         }
 
         TryDeleteDirectory(session);
+    }
+
+    // ------------------------------------------------------------------
+    // 4. 清理沒清乾淨的暫存區
+    // ------------------------------------------------------------------
+
+    /// <summary>「自動還原失敗」時留給使用者手動救回檔案的資料夾，裡面會放這個記號檔</summary>
+    private const string KeepMarker = "KEEP.txt";
+
+    /// <summary>
+    /// 程式啟動時呼叫一次：清掉上次沒清乾淨的暫存區，回傳清掉幾個資料夾。
+    ///
+    /// 為什麼需要：暫存區裡放的是「還沒加密」的登入檔案。正常情況切換完馬上就會刪掉，
+    /// 但如果切換到一半程式被強制關閉或電腦當機，就會留在硬碟上，所以啟動時再清一次。
+    /// 有記號檔的資料夾（自動還原失敗時特意保留的）不會刪。
+    /// </summary>
+    public int CleanupStaleStaging()
+    {
+        var removed = 0;
+        try
+        {
+            if (!Directory.Exists(_stagingRoot)) return 0;
+            foreach (var dir in Directory.GetDirectories(_stagingRoot))
+            {
+                if (File.Exists(Path.Combine(dir, KeepMarker))) continue;
+                TryDeleteDirectory(dir);
+                if (!Directory.Exists(dir)) removed++;
+            }
+        }
+        catch (Exception ex) when (IsFileError(ex))
+        {
+            AppLog.Error("清理暫存區失敗", ex);
+        }
+        return removed;
+    }
+
+    private static void MarkKeep(string sessionDir)
+    {
+        try
+        {
+            File.WriteAllText(Path.Combine(sessionDir, KeepMarker),
+                "這個資料夾是切換失敗時保留下來的備份（rollback 資料夾裡是切換前的登入檔案）。\r\n" +
+                "把檔案救回去之後，就可以把整個資料夾刪掉。\r\n");
+        }
+        catch (Exception ex) when (IsFileError(ex))
+        {
+            AppLog.Error("無法寫入保留記號", ex);
+        }
     }
 
     // ------------------------------------------------------------------

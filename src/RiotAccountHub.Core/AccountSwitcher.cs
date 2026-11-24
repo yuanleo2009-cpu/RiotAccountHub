@@ -64,8 +64,9 @@ public sealed class AccountSwitcher
         {
             if (RiotClientMedia.TurnOff(_liveRoot)) AppLog.Info("已關閉 Riot Client 的背景影片和聲音");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
+            // 這只是附加功能：不管出什麼錯都只寫記錄，絕不能讓「切換帳號」因此失敗
             AppLog.Error("無法關閉 Riot Client 的背景影片和聲音", ex);
         }
     }
@@ -96,7 +97,8 @@ public sealed class AccountSwitcher
     /// </summary>
     public async Task<CurrentRank?> ReadCurrentRankAsync()
     {
-        if (!_riot.IsValorantRunning()) return null;
+        // 查「程序有沒有在執行」放到背景執行緒，不佔用畫面
+        if (!await Task.Run(_riot.IsValorantRunning)) return null;
         return await _api.GetCurrentRankAsync();
     }
 
@@ -110,7 +112,8 @@ public sealed class AccountSwitcher
     /// </summary>
     public async Task<bool> IsCurrentlyLoggedInAsync(Account account)
     {
-        if (!_riot.IsAnyRiotProcessRunning()) return false;
+        // 查「程序有沒有在執行」放到背景執行緒，按下按鈕時畫面才不會卡一下
+        if (!await Task.Run(_riot.IsAnyRiotProcessRunning)) return false;
         var current = await _api.GetRiotIdAsync();
         return current is not null && account.IsSameAccount(current);
     }
@@ -195,18 +198,7 @@ public sealed class AccountSwitcher
     public Task SwitchAndStartClientAsync(string accountId, string clientPath, IProgress<SwitchStep> progress) =>
         RunExclusiveAsync(async () =>
         {
-            var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
-
-            progress.Report(SwitchStep.Closing);
-            await CloseAllInBackgroundAsync();
-
-            progress.Report(SwitchStep.Switching);
-            await Task.Run(() =>
-            {
-                EnsureOriginalBackup();
-                _store.Apply(snapshot, _liveRoot, _items);
-                ApplyMediaPreference();
-            });
+            await SwitchFilesAsync(accountId, progress);
 
             _riot.StartClient(clientPath);
             AppLog.Info("已切換帳號並開啟 Riot Client（先不開遊戲）：" + accountId);
@@ -230,19 +222,7 @@ public sealed class AccountSwitcher
         {
             var total = System.Diagnostics.Stopwatch.StartNew();
 
-            // 先讀快照（檔案不見的話，在關閉 Riot Client 之前就先報錯）
-            var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
-
-            progress.Report(SwitchStep.Closing);
-            await CloseAllInBackgroundAsync();
-
-            progress.Report(SwitchStep.Switching);
-            await Task.Run(() =>
-            {
-                EnsureOriginalBackup();
-                _store.Apply(snapshot, _liveRoot, _items);
-                ApplyMediaPreference();
-            });
+            await SwitchFilesAsync(accountId, progress);
 
             progress.Report(SwitchStep.Launching);
             _riot.StartValorant(clientPath);
@@ -382,6 +362,27 @@ public sealed class AccountSwitcher
     // ------------------------------------------------------------------
     // 內部
     // ------------------------------------------------------------------
+
+    /// <summary>
+    /// 切換帳號的共同步驟（「切換並啟動」和「只開 Riot Client」都用這個）：
+    ///   讀快照 → 關閉 Riot Client → 放入這個帳號的登入檔案
+    /// </summary>
+    private async Task SwitchFilesAsync(string accountId, IProgress<SwitchStep> progress)
+    {
+        // 先讀快照（檔案不見的話，在關閉 Riot Client 之前就先報錯）
+        var snapshot = _store.LoadFromFile(_paths.SnapshotFile(accountId));
+
+        progress.Report(SwitchStep.Closing);
+        await CloseAllInBackgroundAsync();
+
+        progress.Report(SwitchStep.Switching);
+        await Task.Run(() =>
+        {
+            EnsureOriginalBackup();
+            _store.Apply(snapshot, _liveRoot, _items);
+            ApplyMediaPreference();
+        });
+    }
 
     /// <summary>
     /// 第一次動到登入檔案之前，先把使用者原本的狀態備份起來（只做一次）。

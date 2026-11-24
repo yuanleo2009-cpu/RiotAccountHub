@@ -85,7 +85,7 @@ public sealed partial class AccountCardViewModel : ObservableObject
 
     /// <summary>「上次使用：今天 14:30」這樣的文字</summary>
     public string LastUsedText =>
-        Model.LastUsedUtc is { } utc ? "上次使用：" + FormatWhen(utc) : "尚未從這裡啟動過";
+        Model.LastUsedUtc is { } utc ? "上次使用：" + TimeText.FormatWhen(utc) : "尚未從這裡啟動過";
 
     // ---------------- 目前狀態 ----------------
 
@@ -227,20 +227,10 @@ public sealed partial class AccountCardViewModel : ObservableObject
             var lines = new List<string> { $"段位：{RankNames.ToDisplay(r.CompetitiveTier)}" };
             if (r.LeaderboardPosition is { } p) lines.Add($"排行榜：第 {p} 名");
             if (r.AccountLevel is { } lv) lines.Add($"帳號等級：{lv}");
-            lines.Add($"更新時間：{FormatWhen(r.UpdatedUtc)}");
+            lines.Add($"更新時間：{TimeText.FormatWhen(r.UpdatedUtc)}");
             lines.Add("（每次用啟動器玩這個帳號時會自動更新）");
             return string.Join("\n", lines);
         }
-    }
-
-    /// <summary>把時間變成「今天 14:30」、「昨天 09:10」或日期</summary>
-    private static string FormatWhen(DateTime utc)
-    {
-        var local = utc.ToLocalTime();
-        var today = DateTime.Today;
-        return local.Date == today ? $"今天 {local:HH:mm}"
-            : local.Date == today.AddDays(-1) ? $"昨天 {local:HH:mm}"
-            : local.ToString("yyyy/MM/dd HH:mm");
     }
 
     /// <summary>資料改變後呼叫，讓畫面全部重新讀取</summary>

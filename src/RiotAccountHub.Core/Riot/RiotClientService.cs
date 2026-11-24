@@ -121,10 +121,10 @@ public sealed class RiotClientService
     // ------------------------------------------------------------------
 
     /// <summary>有沒有任何 Riot 相關程序正在執行</summary>
-    public bool IsAnyRiotProcessRunning() => ProcessesToClose.Any(IsRunning);
+    public bool IsAnyRiotProcessRunning() => AnyRunning(ProcessesToClose);
 
     /// <summary>有沒有遊戲正在執行(VALORANT / LoL / LoR)</summary>
-    public bool IsGameRunning() => GameProcesses.Any(IsRunning);
+    public bool IsGameRunning() => AnyRunning(GameProcesses);
 
     /// <summary>VALORANT 遊戲本體有沒有在執行（段位資料只有這時候讀得到）</summary>
     public bool IsValorantRunning() => IsRunning("VALORANT-Win64-Shipping");
@@ -136,27 +136,12 @@ public sealed class RiotClientService
     public async Task CloseValorantAsync()
     {
         string[] names = { "VALORANT-Win64-Shipping", "VALORANT" };
-        if (!names.Any(IsRunning)) return;
+        if (!AnyRunning(names)) return;
 
-        foreach (var name in names)
-        {
-            foreach (var p in Process.GetProcessesByName(name))
-            {
-                using (p)
-                {
-                    try
-                    {
-                        AppLog.Info($"結束程序 {name}（套用遊戲設定前）");
-                        p.Kill(entireProcessTree: false);
-                    }
-                    catch (InvalidOperationException) { }
-                    catch (Win32Exception ex) { AppLog.Error($"無法結束 {name}", ex); }
-                }
-            }
-        }
+        KillAll(names, "（套用遊戲設定前）");
 
         var sw = Stopwatch.StartNew();
-        while (names.Any(IsRunning))
+        while (AnyRunning(names))
         {
             if (sw.Elapsed > TimeSpan.FromSeconds(15))
             {
@@ -202,17 +187,44 @@ public sealed class RiotClientService
     }
 
     /// <summary>
-    /// 關閉所有 Riot Client 與遊戲程序，並等到它們真的結束為止。
-    /// 超過 timeout 還沒結束就丟出錯誤（這時候不會動任何檔案）。
+    /// 目前正在執行的所有程序名稱。
+    /// 一次查完再比對，比「每個名字各問 Windows 一次」快很多（清單有十幾個名字）。
     /// </summary>
-    public async Task CloseAllAsync(TimeSpan timeout, CancellationToken ct = default)
+    private static HashSet<string> RunningNames()
     {
-        // 本來就沒有在執行：不用關、也不用等
-        if (!IsAnyRiotProcessRunning()) return;
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in Process.GetProcesses())
+        {
+            using (p)
+            {
+                try
+                {
+                    names.Add(p.ProcessName);
+                }
+                catch (InvalidOperationException)
+                {
+                    // 程序剛好在這一瞬間結束了，略過
+                }
+            }
+        }
+        return names;
+    }
 
+    /// <summary>清單裡有沒有任何一個程序正在執行</summary>
+    private static bool AnyRunning(IEnumerable<string> names)
+    {
+        var running = RunningNames();
+        return names.Any(running.Contains);
+    }
+
+    /// <summary>
+    /// 結束清單裡的所有程序（只是結束程序，不讀寫它們的記憶體）。
+    /// Vanguard 一律跳過。回傳「沒有權限結束」的程序名稱。
+    /// </summary>
+    private static HashSet<string> KillAll(IEnumerable<string> names, string note = "")
+    {
         var accessDenied = new HashSet<string>();
-
-        foreach (var name in ProcessesToClose)
+        foreach (var name in names)
         {
             if (NeverTouch.Contains(name)) continue; // 保險：Vanguard 一律跳過
 
@@ -222,7 +234,7 @@ public sealed class RiotClientService
                 {
                     try
                     {
-                        AppLog.Info($"結束程序 {name} (PID {p.Id})");
+                        AppLog.Info($"結束程序 {name} (PID {p.Id}){note}");
                         p.Kill(entireProcessTree: false);
                     }
                     catch (InvalidOperationException)
@@ -237,6 +249,19 @@ public sealed class RiotClientService
                 }
             }
         }
+        return accessDenied;
+    }
+
+    /// <summary>
+    /// 關閉所有 Riot Client 與遊戲程序，並等到它們真的結束為止。
+    /// 超過 timeout 還沒結束就丟出錯誤（這時候不會動任何檔案）。
+    /// </summary>
+    public async Task CloseAllAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        // 本來就沒有在執行：不用關、也不用等
+        if (!IsAnyRiotProcessRunning()) return;
+
+        var accessDenied = KillAll(ProcessesToClose);
 
         // 等所有程序真的消失
         var sw = Stopwatch.StartNew();
@@ -244,7 +269,8 @@ public sealed class RiotClientService
         {
             if (sw.Elapsed > timeout)
             {
-                var still = ProcessesToClose.Where(IsRunning).ToList();
+                var running = RunningNames();
+                var still = ProcessesToClose.Where(running.Contains).ToList();
                 var hint = accessDenied.Count > 0
                     ? "\n\n可能原因：Riot Client 是用「系統管理員身分」執行的，本程式沒有權限關閉它。請手動關閉 Riot Client，或用系統管理員身分執行本程式。"
                     : "\n\n請手動關閉 Riot Client（包含右下角系統匣的圖示）後再試一次。";

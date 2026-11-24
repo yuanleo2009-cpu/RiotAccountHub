@@ -19,6 +19,25 @@ namespace RiotAccountHub.Core.Riot;
 /// </summary>
 public sealed class RiotLocalApi
 {
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(4);
+
+    /// <summary>
+    /// 全程式共用一個連線工具。
+    /// （以前每問一次就新建一個，每幾秒問一次的話很浪費時間和系統資源。）
+    ///   - Riot Client 用的是自己簽的憑證，所以只對 127.0.0.1 這一個本機位址放行
+    ///   - 不走系統的 Proxy：這些請求只會送到自己電腦，連線密碼不該經過任何中間站
+    ///   - 每次請求各自計時（看 SendAsync），所以這裡不設總時間限制
+    /// </summary>
+    private static readonly HttpClient Http = new(new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = (request, _, _, _) =>
+            request.RequestUri is { Host: "127.0.0.1" },
+        UseProxy = false,
+    })
+    {
+        Timeout = Timeout.InfiniteTimeSpan,
+    };
+
     private readonly string _liveRoot;
 
     public RiotLocalApi(string liveRoot)
@@ -52,6 +71,9 @@ public sealed class RiotLocalApi
         var parts = text.Trim().Split(':');
         if (parts.Length != 5) return null;
         if (!int.TryParse(parts[1], out var pid) || !int.TryParse(parts[2], out var port)) return null;
+        // 檢查內容合理才用：port 要在正常範圍、協定只能是 https 或 http（不然組出來的網址會出錯）
+        if (port is < 1 or > 65535) return null;
+        if (parts[4] is not ("https" or "http")) return null;
         return new LockfileInfo(parts[0], pid, port, parts[3], parts[4]);
     }
 
@@ -139,8 +161,11 @@ public sealed class RiotLocalApi
             foreach (var p in list.EnumerateArray())
             {
                 if (p.ValueKind != JsonValueKind.Object) continue;
-                if (!p.TryGetProperty("puuid", out var id) || !string.Equals(id.GetString(), puuid, StringComparison.OrdinalIgnoreCase)) continue;
-                if (!p.TryGetProperty("product", out var product) || product.GetString() != "valorant") continue;
+                // 先確認欄位真的是文字才讀（不是文字時直接讀會出錯）
+                if (!p.TryGetProperty("puuid", out var id) || id.ValueKind != JsonValueKind.String ||
+                    !string.Equals(id.GetString(), puuid, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!p.TryGetProperty("product", out var product) || product.ValueKind != JsonValueKind.String ||
+                    product.GetString() != "valorant") continue;
                 if (!p.TryGetProperty("private", out var priv) || priv.ValueKind != JsonValueKind.String) continue;
 
                 var rank = ParsePresencePrivate(priv.GetString()!);
@@ -286,27 +311,23 @@ public sealed class RiotLocalApi
         var lockfile = ReadLockfile();
         if (lockfile is null) return (null, null);
 
-        // Riot Client 用的是自己簽的憑證，所以只對 127.0.0.1 這一個本機位址放行
-        using var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = (request, _, _, _) =>
-                request.RequestUri is { Host: "127.0.0.1" },
-        };
-        using var http = new HttpClient(handler) { Timeout = timeout ?? TimeSpan.FromSeconds(4) };
-
         var url = $"{lockfile.Protocol}://127.0.0.1:{lockfile.Port}{path}";
         using var req = new HttpRequestMessage(method, url);
         req.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes("riot:" + lockfile.Password)));
 
+        // 這一次請求最多等多久（等太久就放棄，當作連不上）
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(timeout ?? DefaultTimeout);
+
         try
         {
-            using var resp = await http.SendAsync(req, ct);
+            using var resp = await Http.SendAsync(req, limit.Token);
             // 用 UTF-8 讀取，中文的遊戲名稱才不會變亂碼
-            var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+            var bytes = await resp.Content.ReadAsByteArrayAsync(limit.Token);
             return (resp.StatusCode, Encoding.UTF8.GetString(bytes));
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
             AppLog.Info($"本機 API 連線失敗：{path}({ex.GetType().Name})");
             return (null, null);

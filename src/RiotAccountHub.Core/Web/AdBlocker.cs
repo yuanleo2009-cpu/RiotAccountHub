@@ -32,6 +32,9 @@ public static class AdBlocker
         "scorecardresearch.com", "connect.facebook.net",
     };
 
+    // 把清單放進「查表」用的集合：查一個網域只要查幾次，不用把整份清單比一遍
+    private static readonly HashSet<string> BlockedSet = new(BlockedDomains, StringComparer.Ordinal);
+
     /// <summary>藏起廣告欄位的 CSS（VCRDB 的廣告容器，以及常見的廣告元素）</summary>
     public const string HideAdsCss =
         "#ad-topbar, #ad-anchor, #ad-anchor-close, #ad-video-float, [id^='ad-'], " +
@@ -65,10 +68,17 @@ public static class AdBlocker
     public static bool IsBlockedHost(string host)
     {
         host = host.TrimEnd('.').ToLowerInvariant();
-        foreach (var domain in BlockedDomains)
+        var lookup = BlockedSet.GetAlternateLookup<ReadOnlySpan<char>>();
+
+        // 依序查：整個網域 → 去掉最前面一段 → 再去掉一段…
+        // 例如 a.b.doubleclick.net → b.doubleclick.net → doubleclick.net（查到了，封鎖）
+        var rest = host.AsSpan();
+        while (true)
         {
-            if (host == domain || host.EndsWith("." + domain, StringComparison.Ordinal)) return true;
+            if (lookup.Contains(rest)) return true;
+            var dot = rest.IndexOf('.');
+            if (dot < 0) return false;
+            rest = rest[(dot + 1)..];
         }
-        return false;
     }
 }

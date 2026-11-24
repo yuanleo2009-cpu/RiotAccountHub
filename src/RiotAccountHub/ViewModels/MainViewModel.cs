@@ -482,6 +482,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_settingsSync is null) return null;
         var clientPath = EnsureClientPath();
         if (clientPath is null) return null;
+        CancelAutoStartGame(); // 這個流程自己會決定什麼時候開遊戲
 
         var loggedIn = await _switcher.IsCurrentlyLoggedInAsync(card.Model);
         var steps = new List<SwitchStep>();
@@ -702,6 +703,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         if (!await ConfirmCloseGameAsync()) return;
+        CancelAutoStartGame(); // 上一次啟動留下的等待先取消，切換完成後會重新開始一個
 
         var progress = BeginBusy($"切換到 {card.RiotId}", SwitchStep.Closing, SwitchStep.Switching, SwitchStep.Launching);
         await _switcher.SwitchAndLaunchAsync(card.Model.Id, clientPath, progress);
@@ -740,6 +742,7 @@ public sealed partial class MainViewModel : ObservableObject
             ? "接下來程式會：\n\n1. 關閉 Riot Client（和正在執行的遊戲）\n2. 暫時清空目前的登入狀態（會先備份）\n3. 打開 Riot Client 讓你登入新的帳號\n\n準備好了嗎？"
             : $"接下來程式會關閉 Riot Client，並打開登入畫面，讓你重新登入「{existing.RiotId}」。\n\n準備好了嗎？";
         if (!_dialogs.Confirm(existing is null ? "新增帳號" : "重新登入", intro, "開始", "取消")) return;
+        CancelAutoStartGame(); // 等一下登入新帳號時，不能自動把遊戲開起來
 
         // ---- 步驟 1 ----
         var progress = BeginBusy("準備登入畫面", SwitchStep.Closing, SwitchStep.Clearing, SwitchStep.Launching);
@@ -913,7 +916,15 @@ public sealed partial class MainViewModel : ObservableObject
         if (_settings.MainAccountId == card.Model.Id) _settings.MainAccountId = null;
         if (_settings.CopiedSettingsAccountId == card.Model.Id) _settings.CopiedSettingsAccountId = null;
         _settingsRepo.Save(_settings);
-        _settingsSync?.Store.DeleteProfile(SettingsProfileStore.AccountProfileId(card.Model.Id));
+        try
+        {
+            _settingsSync?.Store.DeleteProfile(SettingsProfileStore.AccountProfileId(card.Model.Id));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 只是一份遊戲設定的紀錄（沒有登入資料），刪不掉不影響刪除帳號
+            AppLog.Error("無法刪除帳號的遊戲設定紀錄", ex);
+        }
         Accounts.Remove(card);
         RefreshSettingsFlags();
         SaveAccounts();
@@ -931,6 +942,7 @@ public sealed partial class MainViewModel : ObservableObject
             "這會關閉 Riot Client（和正在執行的遊戲），並把登入狀態還原成你「第一次使用本程式之前」的樣子。\n\n你在本程式裡存的帳號不會被刪除。",
             "還原", "取消", warning: true);
         if (!ok) return;
+        CancelAutoStartGame();
 
         var progress = BeginBusy("還原原本狀態", SwitchStep.Closing, SwitchStep.Switching);
         await _switcher.RestoreOriginalAsync(progress);
@@ -1067,7 +1079,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!AutoStartGame) return;
 
         // 同一時間只留一個「自動開始遊戲」在等待（例如連按兩次啟動時，取消前一個）
-        _autoStartCts?.Cancel();
+        CancelAutoStartGame();
         var cts = new CancellationTokenSource();
         _autoStartCts = cts;
 
@@ -1086,6 +1098,17 @@ public sealed partial class MainViewModel : ObservableObject
                 AppLog.Error("自動開始遊戲失敗", ex);
             }
         });
+    }
+
+    /// <summary>
+    /// 取消還在背景等待的「自動開始遊戲」。
+    /// 開始別的流程（新增帳號、重新登入、還原、套用設定）之前要先取消，
+    /// 不然使用者在 Riot Client 登入新帳號的那一刻，背景那個等待會把遊戲開起來。
+    /// </summary>
+    private void CancelAutoStartGame()
+    {
+        _autoStartCts?.Cancel();
+        _autoStartCts = null;
     }
 
     /// <summary>記錄「上次使用時間」並存檔</summary>
@@ -1160,6 +1183,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private async Task RunGuardedAsync(Func<Task> action)
     {
+        // 已經有一個流程在跑（例如剛按了「啟動」還在檢查登入狀態）：這次的點擊直接略過，
+        // 避免兩個流程同時進行、互相打亂進度畫面
+        if (_flowRunning) return;
+        _flowRunning = true;
         try
         {
             await action();
@@ -1180,10 +1207,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
         finally
         {
+            _flowRunning = false;
             EndBusy();
             RefreshStatus();
         }
     }
+
+    // 目前有沒有流程（啟動、新增帳號、套用設定…）正在進行
+    private bool _flowRunning;
 
     // ---- 進度畫面 ----
 

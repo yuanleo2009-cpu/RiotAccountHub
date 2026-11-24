@@ -45,7 +45,9 @@ public partial class WebBrowserWindow : FluentWindow
         {
             var dataDir = AppPaths.CreateDefault().WebViewDataDir;
             var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder: null, userDataFolder: dataDir);
+            if (_closed) return; // 還在準備時視窗就被關掉了
             await Browser.EnsureCoreWebView2Async(env);
+            if (_closed) return;
 
             // 擋廣告：拒絕廣告網域的請求（包含網頁裡的 iframe），並藏起空出來的廣告欄位
             _environment = env;
@@ -58,6 +60,10 @@ public partial class WebBrowserWindow : FluentWindow
             Browser.CoreWebView2.NavigationCompleted += (_, _) => LoadingPanel.Visibility = Visibility.Collapsed;
             Browser.CoreWebView2.Navigate(_startUri.ToString());
         }
+        catch (Exception) when (_closed)
+        {
+            // 視窗在載入途中被關掉造成的錯誤：使用者已經不想看了，不要再跳出外部瀏覽器
+        }
         catch (WebView2RuntimeNotFoundException ex)
         {
             AppLog.Error("找不到 WebView2 執行環境", ex);
@@ -69,6 +75,9 @@ public partial class WebBrowserWindow : FluentWindow
             FallbackToExternal("內建瀏覽器開啟失敗，改用預設瀏覽器開啟。");
         }
     }
+
+    // 視窗是不是已經關掉（瀏覽器還在準備的時候就可能被關掉）
+    private bool _closed;
 
     private CoreWebView2Environment? _environment;
     private int _blockedCount;
@@ -86,7 +95,8 @@ public partial class WebBrowserWindow : FluentWindow
     {
         e.Handled = true;
         if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) &&
-            uri.Host.EndsWith(_startUri.Host.Replace("www.", ""), StringComparison.OrdinalIgnoreCase))
+            (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp) &&
+            SameSite.IsSameSite(uri.Host, _startUri.Host))
         {
             Browser.CoreWebView2.Navigate(uri.ToString());
         }
@@ -136,6 +146,7 @@ public partial class WebBrowserWindow : FluentWindow
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
         if (_blockedCount > 0) AppLog.Info($"內建瀏覽器已擋掉 {_blockedCount} 個廣告請求");
         Browser.Dispose();
         base.OnClosed(e);

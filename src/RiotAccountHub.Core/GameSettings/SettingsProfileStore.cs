@@ -53,22 +53,31 @@ public sealed class SettingsProfileStore
     // ---------------- 設定檔 ----------------
 
     /// <summary>某個帳號自動記下的遊戲設定；還沒記過就是 null</summary>
-    public SettingsProfile? AccountProfile(string accountId) =>
-        ListProfiles().FirstOrDefault(p => p.Id == AccountProfileId(accountId));
+    public SettingsProfile? AccountProfile(string accountId) => ReadById(AccountProfileId(accountId));
 
     /// <summary>舊版的主帳號設定（新版改成每個帳號各自記錄）</summary>
-    public SettingsProfile? LegacyMainProfile() =>
-        ListProfiles().FirstOrDefault(p => p.Id == LegacyMainProfileId);
+    public SettingsProfile? LegacyMainProfile() => ReadById(LegacyMainProfileId);
+
+    /// <summary>
+    /// 用編號找設定檔。檔名就是編號，所以直接讀那一個檔案就好，
+    /// 不用把整個資料夾的設定檔（每個約 200 KB）全部讀一遍。
+    /// </summary>
+    private SettingsProfile? ReadById(string id)
+    {
+        var profile = ReadOne(ProfilePath(id));
+        return profile is not null && profile.Id == id ? profile : null;
+    }
+
+    private string ProfilePath(string id) => Path.Combine(_profilesDir, SafeName(id) + ".json");
 
     /// <summary>所有設定檔，新的在前面</summary>
     public List<SettingsProfile> ListProfiles() => ReadAll(_profilesDir);
 
-    public void SaveProfile(SettingsProfile profile) =>
-        JsonStore.Write(Path.Combine(_profilesDir, SafeName(profile.Id) + ".json"), profile);
+    public void SaveProfile(SettingsProfile profile) => JsonStore.Write(ProfilePath(profile.Id), profile);
 
     public void DeleteProfile(string id)
     {
-        var path = Path.Combine(_profilesDir, SafeName(id) + ".json");
+        var path = ProfilePath(id);
         if (File.Exists(path)) File.Delete(path);
     }
 
@@ -82,7 +91,8 @@ public sealed class SettingsProfileStore
 
         foreach (var old in Directory.GetFiles(dir, "*.json").OrderByDescending(f => f).Skip(MaxBackupsPerAccount))
         {
-            try { File.Delete(old); } catch (IOException) { }
+            // 舊備份刪不掉沒關係（下次再刪），不能因此讓這次備份失敗
+            try { File.Delete(old); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
     }
 
@@ -90,7 +100,15 @@ public sealed class SettingsProfileStore
     public SettingsProfile? LatestBackup(string? puuid)
     {
         if (string.IsNullOrEmpty(puuid)) return null;
-        return ReadAll(Path.Combine(_backupsDir, SafeName(puuid))).FirstOrDefault();
+        var dir = Path.Combine(_backupsDir, SafeName(puuid));
+        if (!Directory.Exists(dir)) return null;
+
+        // 檔名就是備份時間，所以從最新的開始讀，讀到第一份好的就回傳（不用每一份都讀）
+        foreach (var file in Directory.GetFiles(dir, "*.json").OrderByDescending(f => f, StringComparer.Ordinal))
+        {
+            if (ReadOne(file) is { } backup) return backup;
+        }
+        return null;
     }
 
     // ---------------- 內部 ----------------
@@ -102,17 +120,25 @@ public sealed class SettingsProfileStore
 
         foreach (var file in Directory.GetFiles(dir, "*.json"))
         {
-            try
-            {
-                var p = JsonStore.Read<SettingsProfile>(file);
-                if (p is not null && PlayerSettingsCodec.LooksValid(p.SettingsJson)) list.Add(p);
-            }
-            catch (Exception ex) when (ex is JsonException or IOException)
-            {
-                AppLog.Error("設定檔讀取失敗，已略過：" + Path.GetFileName(file), ex);
-            }
+            if (ReadOne(file) is { } p) list.Add(p);
         }
         return list.OrderByDescending(p => p.CreatedUtc).ToList();
+    }
+
+    /// <summary>讀一個設定檔；不存在、讀不到或內容不對就回傳 null（不會丟出錯誤）</summary>
+    private static SettingsProfile? ReadOne(string file)
+    {
+        try
+        {
+            if (!File.Exists(file)) return null;
+            var p = JsonStore.Read<SettingsProfile>(file);
+            return p is not null && PlayerSettingsCodec.LooksValid(p.SettingsJson) ? p : null;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error("設定檔讀取失敗，已略過：" + Path.GetFileName(file), ex);
+            return null;
+        }
     }
 
     /// <summary>只允許英數字與 - 當檔名，避免奇怪的路徑</summary>

@@ -50,7 +50,18 @@ public sealed class AppPaths
     public string CardsDir => Path.Combine(DataRoot, "cards");
 
     /// <summary>某個帳號的快照檔案路徑</summary>
-    public string SnapshotFile(string accountId) => Path.Combine(SnapshotsDir, accountId + ".bin");
+    public string SnapshotFile(string accountId) => Path.Combine(SnapshotsDir, SafeFileName(accountId) + ".bin");
+
+    /// <summary>
+    /// 帳號編號只留英數字、- 和 _ 才拿來當檔名。
+    /// 正常的編號本來就只有英數字；這是防止帳號清單檔被改成奇怪的內容時，
+    /// 讀寫或刪除到快照資料夾以外的檔案。
+    /// </summary>
+    private static string SafeFileName(string? id)
+    {
+        var clean = new string((id ?? "").Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
+        return clean.Length == 0 ? "unknown" : clean;
+    }
 
     /// <summary>確保資料夾都存在</summary>
     public void EnsureCreated()

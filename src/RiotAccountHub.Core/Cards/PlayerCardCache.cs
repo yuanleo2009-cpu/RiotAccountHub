@@ -93,7 +93,21 @@ public sealed class PlayerCardCache
             }
             if (resp.Content.Headers.ContentLength > MaxImageBytes) return false;
 
-            var bytes = await resp.Content.ReadAsByteArrayAsync();
+            // 邊下載邊檢查大小：超過上限就馬上停，不會把一個超大的檔案整個讀進記憶體
+            byte[] bytes;
+            await using (var stream = await resp.Content.ReadAsStreamAsync())
+            using (var buffer = new MemoryStream())
+            {
+                var chunk = new byte[81920];
+                int read;
+                while ((read = await stream.ReadAsync(chunk)) > 0)
+                {
+                    buffer.Write(chunk, 0, read);
+                    if (buffer.Length > MaxImageBytes) break;
+                }
+                bytes = buffer.ToArray();
+            }
+
             if (bytes.Length > MaxImageBytes || !LooksLikePng(bytes))
             {
                 AppLog.Info("卡面圖片格式不正確，已略過：" + fileName);

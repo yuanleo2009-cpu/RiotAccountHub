@@ -39,8 +39,9 @@ public static class PlayerSettingsCodec
     /// <summary>
     /// 檢查內容是不是看起來正常的遊戲設定，避免把壞掉的資料寫進帳號。
     /// </summary>
-    public static bool LooksValid(string json)
+    public static bool LooksValid(string? json)
     {
+        if (string.IsNullOrWhiteSpace(json)) return false;
         try
         {
             if (JsonNode.Parse(json) is not JsonObject obj) return false;
@@ -118,8 +119,11 @@ public static class PlayerSettingsCodec
 
     private static bool IsAccountState(JsonNode? item)
     {
-        var name = item?["settingEnum"]?.GetValue<string>();
-        if (name is null) return false;
+        // 先確認形狀對（是一個物件，settingEnum 是文字）才讀；形狀不對就當作不是帳號紀錄
+        if (item is not JsonObject obj || obj["settingEnum"] is not JsonValue value || !value.TryGetValue<string>(out var name))
+        {
+            return false;
+        }
         var shortName = name.Contains("::") ? name[(name.LastIndexOf("::", StringComparison.Ordinal) + 2)..] : name;
         return shortName.StartsWith("LastSeen", StringComparison.Ordinal) ||
                shortName.StartsWith("LastAccepted", StringComparison.Ordinal);
