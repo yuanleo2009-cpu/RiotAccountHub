@@ -18,6 +18,12 @@ public sealed class AppSettings
     public bool AutoStartGame { get; set; }
 
     /// <summary>
+    /// 切換帳號時，自動關掉 Riot Client 主畫面的背景影片和影片聲音。
+    /// 預設開啟（舊版的設定檔沒有這一項時也是開啟）。
+    /// </summary>
+    public bool MuteRiotClientMedia { get; set; } = true;
+
+    /// <summary>
     /// 主帳號的編號（Account.Id）。其他帳號的卡片上會出現「套用主帳號設定」按鈕。
     /// 沒設定就是 null。
     /// </summary>

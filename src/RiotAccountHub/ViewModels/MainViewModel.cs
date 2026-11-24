@@ -132,6 +132,19 @@ public sealed partial class MainViewModel : ObservableObject
         AppLog.Info("自動開始遊戲：" + (value ? "開啟" : "關閉"));
     }
 
+    /// <summary>切換帳號時自動關掉 Riot Client 的背景影片和聲音（存在設定裡）</summary>
+    [ObservableProperty]
+    private bool _muteRiotClientMedia = true;
+
+    partial void OnMuteRiotClientMediaChanged(bool value)
+    {
+        _switcher.MuteClientMedia = value;
+        if (_settings.MuteRiotClientMedia == value) return;
+        _settings.MuteRiotClientMedia = value;
+        _settingsRepo.Save(_settings);
+        AppLog.Info("關閉 Riot Client 影片和聲音：" + (value ? "開啟" : "關閉"));
+    }
+
     /// <summary>開機（登入 Windows）時自動開啟本程式</summary>
     [ObservableProperty]
     private bool _startWithWindows;
@@ -200,6 +213,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = _settingsRepo.Load();
         AutoStartGame = _settings.AutoStartGame;
+        MuteRiotClientMedia = _settings.MuteRiotClientMedia;
+        _switcher.MuteClientMedia = _settings.MuteRiotClientMedia;
         LoadStartupSetting();
 
         foreach (var account in _accountRepo.Load())

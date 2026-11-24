@@ -487,6 +487,12 @@
                             <ui:ToggleSwitch IsChecked="{Binding StartWithWindows}" VerticalAlignment="Center"
                                              Margin="{StaticResource Gap.Right16}"
                                              ToolTip="登入 Windows 時自動開啟本程式（會縮小在工作列，不會跳出視窗）。" />
+                            <TextBlock Text="關閉 Riot 影片和聲音" Style="{StaticResource Text.CaptionSecondary}" VerticalAlignment="Center"
+                                       Margin="{StaticResource Gap.Right8}"
+                                       ToolTip="切換帳號時，自動關掉 Riot Client 主畫面的背景影片和影片聲音（右下角的喇叭、攝影機按鈕）。" />
+                            <ui:ToggleSwitch IsChecked="{Binding MuteRiotClientMedia}" VerticalAlignment="Center"
+                                             Margin="{StaticResource Gap.Right16}"
+                                             ToolTip="切換帳號時，自動關掉 Riot Client 主畫面的背景影片和影片聲音（右下角的喇叭、攝影機按鈕）。" />
                             <TextBlock Text="按啟動後自動開始遊戲" Style="{StaticResource Text.CaptionSecondary}" VerticalAlignment="Center"
                                        Margin="{StaticResource Gap.Right8}"
                                        ToolTip="開啟後，按「啟動」不用再到 Riot Client 按「開始遊戲」，登入完成就會自動開始。" />

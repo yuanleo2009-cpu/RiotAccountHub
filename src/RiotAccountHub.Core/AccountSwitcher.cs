@@ -48,6 +48,28 @@ public sealed class AccountSwitcher
         _items = items;
     }
 
+    /// <summary>
+    /// 切換帳號時，順便關掉 Riot Client 主畫面的背景影片和聲音（主畫面下方的開關）。
+    /// </summary>
+    public bool MuteClientMedia { get; set; } = true;
+
+    /// <summary>
+    /// 放回登入檔案之後（Riot Client 還關著）呼叫：把影片和聲音設成關閉。
+    /// 失敗只寫記錄，不影響切換帳號。
+    /// </summary>
+    private void ApplyMediaPreference()
+    {
+        if (!MuteClientMedia) return;
+        try
+        {
+            if (RiotClientMedia.TurnOff(_liveRoot)) AppLog.Info("已關閉 Riot Client 的背景影片和聲音");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error("無法關閉 Riot Client 的背景影片和聲音", ex);
+        }
+    }
+
     /// <summary>是否已經有「原本狀態」的備份</summary>
     public bool HasOriginalBackup => File.Exists(_paths.OriginalBackupFile);
 
@@ -183,6 +205,7 @@ public sealed class AccountSwitcher
             {
                 EnsureOriginalBackup();
                 _store.Apply(snapshot, _liveRoot, _items);
+                ApplyMediaPreference();
             });
 
             _riot.StartClient(clientPath);
@@ -218,6 +241,7 @@ public sealed class AccountSwitcher
             {
                 EnsureOriginalBackup();
                 _store.Apply(snapshot, _liveRoot, _items);
+                ApplyMediaPreference();
             });
 
             progress.Report(SwitchStep.Launching);
@@ -313,7 +337,11 @@ public sealed class AccountSwitcher
             await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Switching);
-            await Task.Run(() => _store.Apply(pending.PreviousState, _liveRoot, _items));
+            await Task.Run(() =>
+            {
+                _store.Apply(pending.PreviousState, _liveRoot, _items);
+                ApplyMediaPreference();
+            });
             AppLog.Info("已取消登入流程並放回原本的登入狀態");
         });
 
@@ -335,7 +363,11 @@ public sealed class AccountSwitcher
             await CloseAllInBackgroundAsync();
 
             progress.Report(SwitchStep.Switching);
-            await Task.Run(() => _store.Apply(original, _liveRoot, _items));
+            await Task.Run(() =>
+            {
+                _store.Apply(original, _liveRoot, _items);
+                ApplyMediaPreference();
+            });
             AppLog.Info("已還原原本狀態");
         });
 
