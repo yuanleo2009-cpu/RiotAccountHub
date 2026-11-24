@@ -14,7 +14,7 @@
     <!-- 程式名稱、版本與圖示 -->
     <AssemblyName>RiotAccountHub</AssemblyName>
     <Product>Riot Account Hub</Product>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
