@@ -226,6 +226,13 @@ public sealed class AccountSwitcher
         return false;
     }
 
+    // Riot Client 的登入流程走到「等使用者登入」：連續看到兩次（相隔半秒）就判定，不用多等。
+    // 正常自動登入時完全不會出現這個狀態，所以可以這麼快。
+    private static readonly TimeSpan LoginRequiredGrace = TimeSpan.FromMilliseconds(400);
+
+    // 每隔多久問 Riot Client 一次
+    private static readonly TimeSpan LoginWatchInterval = TimeSpan.FromMilliseconds(500);
+
     // Riot Client 連續這麼久都「停在登入畫面」，就判定存起來的登入狀態失效了。
     // （正常自動登入時，Riot Client 開好後大約 4 秒內就登入完成，不會停在登入畫面）
     private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(8);
@@ -234,13 +241,13 @@ public sealed class AccountSwitcher
     private static readonly TimeSpan NotLoggedInGrace = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// 切換帳號後，確認 Riot Client 有沒有自動登入（只問本機的 Riot Client，每秒一次）。
+    /// 切換帳號後，確認 Riot Client 有沒有自動登入（只問本機的 Riot Client，每半秒一次）。
     /// 正常情況下 Riot Client 開好後幾秒內就會自動登入；如果它開好了卻一直沒有登入，
     /// 代表這個帳號存起來的登入狀態已經失效（最常見的原因：在 Riot Client 或遊戲裡按了「登出」）。
     /// </summary>
     public async Task<AutoLoginResult> WatchAutoLoginAsync(TimeSpan timeout, CancellationToken ct = default)
     {
-        var tracker = new AutoLoginTracker(LoginPageGrace, NotLoggedInGrace);
+        var tracker = new AutoLoginTracker(LoginRequiredGrace, LoginPageGrace, NotLoggedInGrace);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (sw.Elapsed < timeout)
         {
@@ -253,7 +260,7 @@ public sealed class AccountSwitcher
                 }
                 return result;
             }
-            await Task.Delay(1000, ct);
+            await Task.Delay(LoginWatchInterval, ct);
         }
         return AutoLoginResult.Unknown;
     }

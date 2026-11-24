@@ -279,6 +279,7 @@ public sealed class RiotLocalApi
     /// 切換帳號後，判斷「Riot Client 有沒有自動登入」用的訊號：
     ///   - /rso-auth/v1/authorization 回 200：已經登入（「自動開始遊戲」也是看這個，實測可靠）
     ///   - 完全沒回應：連不上（Riot Client 還在開，或已經關掉）
+    ///   - 還沒登入，而且登入流程已經走到「等使用者登入」：這次確定不會自動登入了（最快的訊號）
     ///   - 還沒登入，而且 session 的 type 是 needs_credentials：Riot Client 正停在登入畫面
     ///   - 其他：Riot Client 開著，但還沒登入（可能還在啟動）
     /// </summary>
@@ -288,10 +289,45 @@ public sealed class RiotLocalApi
         if (authorization is null) return AutoLoginSignal.Unreachable;
         if (authorization == HttpStatusCode.OK) return AutoLoginSignal.LoggedIn;
 
+        // 還沒登入：問 Riot Client 的登入流程現在走到哪一步
+        var (stage, stageJson) = await GetAsync("/player-session-lifecycle/v1/session", ct);
+        if (stage == HttpStatusCode.OK && stageJson is not null && IsWaitingForUserToSignIn(stageJson))
+        {
+            return AutoLoginSignal.LoginRequired;
+        }
+
         var (session, json) = await GetAsync("/rso-auth/v1/session", ct);
         return session == HttpStatusCode.OK && json is not null && IsAskingForCredentials(json)
             ? AutoLoginSignal.AtLoginPage
             : AutoLoginSignal.NotLoggedIn;
+    }
+
+    /// <summary>
+    /// Riot Client 的登入流程是不是已經走到「等使用者選擇怎麼登入」（loginState = PendingLoginStrategy）。
+    ///
+    /// 從 Riot Client 自己的記錄檔看到的順序（2026-11-24）：
+    ///   存的登入有效：  … → RestoreAuthorization → PendingEulaData → … → Authorized
+    ///                   （完全不會經過 PendingLoginStrategy）
+    ///   存的登入被拒絕：… → RestoreAuthorization → PendingLoginStrategy（Riot Client 啟動後 2 秒內）
+    /// 所以一看到這個狀態，就能確定「這次不會自動登入了」，不需要再多等。
+    ///
+    /// 注意：這個網址在登入之後的內容含有 token。這裡只讀 loginState 一個欄位，
+    /// 其他內容不保留、不寫記錄；而且只有在「還沒登入」時才會問它。
+    /// </summary>
+    internal static bool IsWaitingForUserToSignIn(string lifecycleJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(lifecycleJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object &&
+                   doc.RootElement.TryGetProperty("loginState", out var state) &&
+                   state.ValueKind == JsonValueKind.String &&
+                   string.Equals(state.GetString(), "PendingLoginStrategy", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false; // 看不懂就當作不是，交給其他比較慢的判斷
+        }
     }
 
     /// <summary>

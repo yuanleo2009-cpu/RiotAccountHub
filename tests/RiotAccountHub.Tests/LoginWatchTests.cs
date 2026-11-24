@@ -8,10 +8,11 @@ namespace RiotAccountHub.Tests;
 /// </summary>
 public sealed class LoginWatchTests
 {
+    private static readonly TimeSpan LoginRequiredGrace = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan LoginPageGrace = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan NotLoggedInGrace = TimeSpan.FromSeconds(20);
 
-    private static AutoLoginTracker NewTracker() => new(LoginPageGrace, NotLoggedInGrace);
+    private static AutoLoginTracker NewTracker() => new(LoginRequiredGrace, LoginPageGrace, NotLoggedInGrace);
 
     private static TimeSpan S(double seconds) => TimeSpan.FromSeconds(seconds);
 
@@ -25,6 +26,29 @@ public sealed class LoginWatchTests
         Assert.Null(tracker.Observe(AutoLoginSignal.Unreachable, S(0))); // Riot Client 還在開
         Assert.Null(tracker.Observe(AutoLoginSignal.NotLoggedIn, S(1)));
         Assert.Equal(AutoLoginResult.LoggedIn, tracker.Observe(AutoLoginSignal.LoggedIn, S(4)));
+    }
+
+    [Fact]
+    public void 登入流程走到等使用者登入_連續看到兩次就判定()
+    {
+        // 真實情況：Riot Client 啟動後不到 2 秒就走到這一步，每半秒問一次
+        var tracker = NewTracker();
+
+        Assert.Null(tracker.Observe(AutoLoginSignal.Unreachable, S(0)));
+        Assert.Null(tracker.Observe(AutoLoginSignal.NotLoggedIn, S(1.5)));
+        Assert.Null(tracker.Observe(AutoLoginSignal.LoginRequired, S(2.0))); // 第一次看到，先不下結論
+        Assert.Equal(AutoLoginResult.NeedsLogin, tracker.Observe(AutoLoginSignal.LoginRequired, S(2.5)));
+    }
+
+    [Fact]
+    public void 等使用者登入只出現一次就消失_不算()
+    {
+        var tracker = NewTracker();
+
+        Assert.Null(tracker.Observe(AutoLoginSignal.LoginRequired, S(2.0)));
+        Assert.Null(tracker.Observe(AutoLoginSignal.NotLoggedIn, S(2.5)));   // 訊號消失，重新計算
+        Assert.Null(tracker.Observe(AutoLoginSignal.LoginRequired, S(3.0))); // 又是「第一次」
+        Assert.Equal(AutoLoginResult.LoggedIn, tracker.Observe(AutoLoginSignal.LoggedIn, S(3.5)));
     }
 
     [Fact]
@@ -77,11 +101,10 @@ public sealed class LoginWatchTests
     {
         var tracker = NewTracker();
 
-        Assert.Null(tracker.Observe(AutoLoginSignal.AtLoginPage, S(0)));
-        Assert.Null(tracker.Observe(AutoLoginSignal.Unreachable, S(6)));  // 例如 Riot Client 自己重新啟動
-        Assert.Null(tracker.Observe(AutoLoginSignal.AtLoginPage, S(8)));  // 重新開始算
-        Assert.Null(tracker.Observe(AutoLoginSignal.AtLoginPage, S(15))); // 才 7 秒
-        Assert.Equal(AutoLoginResult.NeedsLogin, tracker.Observe(AutoLoginSignal.AtLoginPage, S(16)));
+        Assert.Null(tracker.Observe(AutoLoginSignal.LoginRequired, S(1.0)));
+        Assert.Null(tracker.Observe(AutoLoginSignal.Unreachable, S(1.5)));   // 例如 Riot Client 自己重新啟動
+        Assert.Null(tracker.Observe(AutoLoginSignal.LoginRequired, S(2.0))); // 重新開始算
+        Assert.Equal(AutoLoginResult.NeedsLogin, tracker.Observe(AutoLoginSignal.LoginRequired, S(2.5)));
     }
 
     [Fact]
@@ -89,10 +112,47 @@ public sealed class LoginWatchTests
     {
         var tracker = NewTracker();
 
-        for (var t = 0; t <= 90; t++)
+        for (var t = 0; t <= 180; t++)
         {
-            Assert.Null(tracker.Observe(AutoLoginSignal.Unreachable, S(t)));
+            Assert.Null(tracker.Observe(AutoLoginSignal.Unreachable, S(t / 2.0)));
         }
+    }
+
+    // ---------------- Riot Client 的登入流程走到哪一步 ----------------
+
+    [Fact]
+    public void 登入流程在等使用者登入_判斷得出來()
+    {
+        // 這個網址的內容還有很多別的欄位（登入後含 token），程式只看 loginState
+        const string json = "{\"accessToken\":\"\",\"actionRequired\":true,\"loginState\":\"PendingLoginStrategy\",\"puuid\":\"\"}";
+
+        Assert.True(RiotLocalApi.IsWaitingForUserToSignIn(json));
+    }
+
+    [Theory]
+    // 這些是「存的登入有效」時，Riot Client 記錄檔裡實際出現過的步驟：都不能被當成需要登入
+    [InlineData("PendingInitialization")]
+    [InlineData("PendingClientId")]
+    [InlineData("PendingPersistenceInitialization")]
+    [InlineData("RestoreAuthorization")]
+    [InlineData("PendingEulaData")]
+    [InlineData("PendingPersistentFlagsData")]
+    [InlineData("PendingProductContextInitialization")]
+    [InlineData("Authorized")]
+    public void 正常自動登入會經過的步驟_不算需要登入(string state)
+    {
+        Assert.False(RiotLocalApi.IsWaitingForUserToSignIn("{\"loginState\":\"" + state + "\"}"));
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"loginState\":null}")]
+    [InlineData("{\"loginState\":5}")]
+    [InlineData("[]")]
+    [InlineData("{ 壞掉的內容")]
+    public void 登入流程的內容看不懂時_不算需要登入_也不會出錯(string json)
+    {
+        Assert.False(RiotLocalApi.IsWaitingForUserToSignIn(json));
     }
 
     // ---------------- 解讀 Riot Client 回報的登入狀態 ----------------
