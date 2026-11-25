@@ -86,8 +86,33 @@
                     </StackPanel>
                 </DockPanel>
 
+                <StackPanel Grid.Row="1">
+                <!-- 更新橫幅（有新版本，或剛更新完時才顯示） -->
+                <Grid helpers:Motion.IsShown="{Binding HasUpdateBanner}" helpers:Motion.ShowMode="Expand">
+                <Border Style="{StaticResource Panel}" Margin="{StaticResource Gap.Banner}"
+                        Padding="{StaticResource Pad.Notice}" CornerRadius="{StaticResource Radius.Control}"
+                        ToolTip="{Binding UpdateBannerDetail}" ToolTipService.IsEnabled="{Binding CanInstallUpdate}">
+                    <DockPanel>
+                        <ui:Button DockPanel.Dock="Right" Style="{StaticResource Btn.GhostSmall}"
+                                   Icon="{ui:SymbolIcon Dismiss16}" Content="關閉"
+                                   Command="{Binding DismissUpdateBannerCommand}" />
+                        <ui:Button DockPanel.Dock="Right" Style="{StaticResource Btn.Primary}"
+                                   Height="{StaticResource Size.ButtonSmall}" Padding="{StaticResource Pad.ButtonSmall}"
+                                   FontSize="{StaticResource Font.Caption}" Margin="{StaticResource Gap.Right8}"
+                                   Icon="{ui:SymbolIcon ArrowDownload16}" Content="立即更新"
+                                   Command="{Binding InstallUpdateCommand}"
+                                   Visibility="{Binding CanInstallUpdate, Converter={StaticResource BoolToVis}}" />
+                        <ui:SymbolIcon DockPanel.Dock="Left" Symbol="ArrowCircleUp20" FontSize="{StaticResource Size.Icon}"
+                                       Foreground="{StaticResource Brush.Accent}" VerticalAlignment="Center"
+                                       Margin="{StaticResource Gap.Right8}" />
+                        <TextBlock Text="{Binding UpdateBannerText}" Style="{StaticResource Text.BodySecondary}"
+                                   VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </DockPanel>
+                </Border>
+                </Grid>
+
                 <!-- 「已複製」橫幅（有複製設定時才顯示） -->
-                <Grid Grid.Row="1" helpers:Motion.IsShown="{Binding HasCopiedSettings}" helpers:Motion.ShowMode="Expand">
+                <Grid helpers:Motion.IsShown="{Binding HasCopiedSettings}" helpers:Motion.ShowMode="Expand">
                 <Border Style="{StaticResource Panel}" Margin="{StaticResource Gap.Banner}"
                         Padding="{StaticResource Pad.Notice}" CornerRadius="{StaticResource Radius.Control}">
                     <DockPanel>
@@ -102,6 +127,7 @@
                     </DockPanel>
                 </Border>
                 </Grid>
+                </StackPanel>
 
                 <!-- 帳號卡片列表 -->
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
@@ -501,14 +527,26 @@
                             <ui:Button Style="{StaticResource Btn.Icon}" Icon="{ui:SymbolIcon Folder20}" Margin="{StaticResource Gap.Left16}"
                                        Command="{Binding OpenDataFolderCommand}" ToolTip="打開程式資料夾（%AppData%\RiotAccountHub）" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Riot Client" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding RiotClientPathText}" Style="{StaticResource Text.CaptionSecondary}"
-                                       MaxWidth="240" VerticalAlignment="Center" Margin="{StaticResource Gap.Left8}"
+                        <!-- 左邊：Riot Client 路徑（空間不夠時路徑先縮短，完整路徑在滑鼠提示裡）、版本與檢查更新 -->
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" MaxWidth="240" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Riot Client" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding RiotClientPathText}" Style="{StaticResource Text.CaptionSecondary}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="{StaticResource Gap.Left8}"
                                        ToolTip="{Binding RiotClientPathText}" />
-                            <ui:Button Style="{StaticResource Btn.GhostSmall}" Content="變更" Margin="{StaticResource Gap.Left8}"
+                            <ui:Button Grid.Column="2" Style="{StaticResource Btn.GhostSmall}" Content="變更" Margin="{StaticResource Gap.Left8}"
                                        Command="{Binding ChangeRiotClientPathCommand}" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="3" Text="{Binding VersionText}" Style="{StaticResource Text.CaptionSecondary}"
+                                       VerticalAlignment="Center" Margin="{StaticResource Gap.Left16}" />
+                            <ui:Button Grid.Column="4" Style="{StaticResource Btn.GhostSmall}" Content="檢查更新" Margin="4,0,0,0"
+                                       Command="{Binding CheckForUpdatesCommand}" ToolTip="到 GitHub 看有沒有新版本" />
+                        </Grid>
                     </DockPanel>
                 </Border>
             </Grid>

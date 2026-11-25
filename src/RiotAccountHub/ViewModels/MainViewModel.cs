@@ -12,6 +12,7 @@ using RiotAccountHub.Core.Models;
 using RiotAccountHub.Core.Riot;
 using RiotAccountHub.Core.Startup;
 using RiotAccountHub.Core.Storage;
+using RiotAccountHub.Core.Updates;
 using RiotAccountHub.Core.Web;
 using RiotAccountHub.Services;
 
@@ -67,8 +68,10 @@ public sealed partial class MainViewModel : ObservableObject
         IDialogService dialogs,
         PlayerCardCache? cards = null,
         SettingsSync? settingsSync = null,
-        StartupRegistration? startup = null)
+        StartupRegistration? startup = null,
+        UpdateService? updates = null)
     {
+        _updates = updates ?? new UpdateService();
         _startup = startup ?? new StartupRegistration();
         _paths = paths;
         _switcher = switcher;
@@ -211,6 +214,47 @@ public sealed partial class MainViewModel : ObservableObject
     private string _riotClientPathText = "";
 
     // ==================================================================
+    // 程式更新
+    // ==================================================================
+
+    private readonly UpdateService _updates;
+    private UpdateManifest? _availableUpdate;
+    private Version? _dismissedUpdate;
+    private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(6) };
+
+    /// <summary>畫面下方顯示的目前版本，例如 v1.0.4</summary>
+    public string VersionText => "v" + AppVersion.Display(AppVersion.Current);
+
+    /// <summary>上方的更新橫幅要不要顯示（有新版本，或剛更新完）</summary>
+    [ObservableProperty]
+    private bool _hasUpdateBanner;
+
+    [ObservableProperty]
+    private string _updateBannerText = "";
+
+    /// <summary>滑鼠移到橫幅上顯示的更新內容</summary>
+    [ObservableProperty]
+    private string _updateBannerDetail = "";
+
+    /// <summary>橫幅上要不要有「立即更新」按鈕（剛更新完的提示就不用）</summary>
+    [ObservableProperty]
+    private bool _canInstallUpdate;
+
+    /// <summary>
+    /// 安裝更新的最後一步：開啟新版本，然後結束自己。
+    /// 測試時可以換掉，避免真的重新開啟程式。
+    /// </summary>
+    internal Action<string> RestartIntoNewVersion { get; set; } = exe =>
+    {
+        Process.Start(new ProcessStartInfo(exe, $"{App.AfterUpdateArgument} {Environment.ProcessId}")
+        {
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetDirectoryName(exe)!,
+        })?.Dispose();
+        System.Windows.Application.Current?.Shutdown();
+    };
+
+    // ==================================================================
     // 初始化
     // ==================================================================
 
@@ -246,6 +290,141 @@ public sealed partial class MainViewModel : ObservableObject
 
         // 之前下載失敗（例如當時沒網路）的卡面圖片，重新試一次
         foreach (var card in Accounts) _ = LoadCardArtAsync(card);
+
+        // 檢查有沒有新版本：開啟後等幾秒再查（不要拖慢開啟），之後每 6 小時查一次
+        _updateTimer.Tick += async (_, _) => await CheckForUpdatesQuietlyAsync();
+        _updateTimer.Start();
+        _ = CheckForUpdatesSoonAsync();
+    }
+
+    private async Task CheckForUpdatesSoonAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(8));
+        await CheckForUpdatesQuietlyAsync();
+    }
+
+    /// <summary>剛由舊版更新過來：上方顯示「已更新到 vX」</summary>
+    public void ShowJustUpdated()
+    {
+        UpdateBannerText = $"已更新到 {VersionText}。帳號和設定都保留著。";
+        UpdateBannerDetail = "";
+        CanInstallUpdate = false;
+        HasUpdateBanner = true;
+    }
+
+    /// <summary>在背景檢查有沒有新版本；有的話顯示橫幅（連不上就算了，不打擾使用者）</summary>
+    private async Task CheckForUpdatesQuietlyAsync()
+    {
+        try
+        {
+            var latest = await _updates.FetchLatestAsync();
+            if (latest is null || latest.Version <= AppVersion.Current) return;
+            if (_dismissedUpdate is not null && latest.Version <= _dismissedUpdate) return; // 這個版本按過「×」了
+            ShowUpdateAvailable(latest);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("檢查更新失敗", ex);
+        }
+    }
+
+    private void ShowUpdateAvailable(UpdateManifest latest)
+    {
+        if (_availableUpdate?.Version != latest.Version) AppLog.Info($"有新版本 v{AppVersion.Display(latest.Version)}");
+        _availableUpdate = latest;
+        var notes = latest.Notes.Take(3).ToList();
+        // 橫幅只放第一點的開頭（例如「程式內更新」），完整內容放在滑鼠提示和確認視窗裡
+        var headline = notes.Count > 0 ? notes[0].Split('：', ':')[0] : "";
+        if (headline.Length > 30) headline = headline[..30] + "…";
+        UpdateBannerText = $"有新版本 v{AppVersion.Display(latest.Version)}（目前 {VersionText}）" +
+                           (headline.Length > 0 ? "：" + headline : "") + "。按「立即更新」就會自動下載並重新開啟。";
+        UpdateBannerDetail = latest.Notes.Count > 0 ? "更新內容：\n• " + string.Join("\n• ", latest.Notes) : "";
+        CanInstallUpdate = true;
+        HasUpdateBanner = true;
+    }
+
+    /// <summary>按鈕：檢查更新（畫面下方）</summary>
+    [RelayCommand]
+    private Task CheckForUpdatesAsync() => RunGuardedAsync(async () =>
+    {
+        BeginBusy("檢查更新");
+        BusyDetail = "正在問 GitHub 有沒有新版本…";
+        var latest = await _updates.FetchLatestAsync();
+        EndBusy();
+
+        if (latest is null)
+        {
+            _dialogs.ShowInfo("沒辦法檢查更新", "連不上 GitHub。請確認網路後再試一次。");
+        }
+        else if (latest.Version > AppVersion.Current)
+        {
+            _dismissedUpdate = null;
+            ShowUpdateAvailable(latest);
+        }
+        else
+        {
+            _dialogs.ShowInfo("已經是最新版", $"目前的 {VersionText} 就是最新版。");
+        }
+    });
+
+    /// <summary>按鈕：關掉更新橫幅（這個版本這次開著程式時不再提醒）</summary>
+    [RelayCommand]
+    private void DismissUpdateBanner()
+    {
+        HasUpdateBanner = false;
+        if (CanInstallUpdate) _dismissedUpdate = _availableUpdate?.Version;
+    }
+
+    /// <summary>按鈕：立即更新</summary>
+    [RelayCommand]
+    private Task InstallUpdateAsync() => RunGuardedAsync(async () =>
+    {
+        var update = _availableUpdate;
+        if (update is null) return;
+        var versionText = "v" + AppVersion.Display(update.Version);
+
+        var exe = Environment.ProcessPath;
+        var folder = exe is null ? null : Path.GetDirectoryName(exe);
+        if (exe is null || !SelfReplacer.CanWriteTo(folder))
+        {
+            _dialogs.ShowInfo("沒辦法自動更新",
+                "程式放的資料夾不能寫入（例如放在 Program Files 裡），所以沒辦法自動更新。\n\n接下來會打開下載頁面，請手動下載新版。");
+            OpenUrl(update.Page?.ToString() ?? UpdateService.LatestReleasePage);
+            return;
+        }
+
+        var notes = update.Notes.Count > 0 ? "\n\n更新內容：\n• " + string.Join("\n• ", update.Notes.Take(6)) : "";
+        if (!_dialogs.Confirm($"更新到 {versionText}",
+                $"要更新到 {versionText} 嗎？{notes}\n\n" +
+                $"程式會從 GitHub 下載更新包（約 {update.Size / 1024 / 1024} MB），完成後自動重新開啟。帳號和設定都會保留。",
+                "更新", "取消"))
+        {
+            return;
+        }
+
+        CancelAutoStartGame();
+        var progress = BeginBusy($"更新到 {versionText}", SwitchStep.Downloading, SwitchStep.Verifying, SwitchStep.Installing);
+        var percent = new Progress<double>(p => BusyDetail = $"正在下載更新包… {p:P0}");
+        using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        var newExe = await _updates.DownloadAsync(update, Path.Combine(_paths.DataRoot, "updates"), progress, percent, limit.Token);
+
+        progress.Report(SwitchStep.Installing);
+        await Task.Run(() => SelfReplacer.Replace(newExe, exe));
+        AppLog.Info($"已換成 {versionText}，重新開啟程式");
+        RestartIntoNewVersion(exe);
+    });
+
+    private void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("無法開啟網頁", ex);
+            _dialogs.ShowInfo("無法開啟網頁", "請自己用瀏覽器打開：\n" + url);
+        }
     }
 
     /// <summary>
@@ -1466,6 +1645,9 @@ public sealed partial class MainViewModel : ObservableObject
         SwitchStep.LoggingIn => "登入中",
         SwitchStep.ApplyingSettings => "套用設定",
         SwitchStep.ReadingSettings => "讀取設定",
+        SwitchStep.Downloading => "下載中",
+        SwitchStep.Verifying => "檢查中",
+        SwitchStep.Installing => "安裝中",
         _ => step.ToString(),
     };
 
@@ -1479,6 +1661,9 @@ public sealed partial class MainViewModel : ObservableObject
         SwitchStep.LoggingIn => "等待 Riot Client 自動登入…",
         SwitchStep.ApplyingSettings => "正在備份並套用遊戲設定…",
         SwitchStep.ReadingSettings => "正在讀取遊戲設定…",
+        SwitchStep.Downloading => "正在下載更新包…",
+        SwitchStep.Verifying => "正在確認更新包沒有損壞…",
+        SwitchStep.Installing => "正在換成新版本，完成後會自動重新開啟…",
         _ => "",
     };
 }

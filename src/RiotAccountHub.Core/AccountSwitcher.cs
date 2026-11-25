@@ -524,6 +524,12 @@ public enum SwitchStep
     ApplyingSettings,
     /// <summary>讀取遊戲設定</summary>
     ReadingSettings,
+    /// <summary>下載更新包</summary>
+    Downloading,
+    /// <summary>確認更新包沒有損壞、沒有被改過</summary>
+    Verifying,
+    /// <summary>換成新版本</summary>
+    Installing,
 }
 
 /// <summary>登入流程進行中：記住開始前的狀態（已加密），取消時放回去</summary>

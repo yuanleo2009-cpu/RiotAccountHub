@@ -6,9 +6,22 @@ Windows 上的 Valorant / Riot 帳號切換器。每個帳號登入一次並存�
 
 ## 下載
 
-到 [Releases](https://github.com/yuanleo2009-cpu/RiotAccountHub/releases/latest) 下載最新的 `RiotAccountHub-v*.zip`，解壓縮後照著裡面的 `安裝說明.txt` 做就好。
+到 [Releases](https://github.com/yuanleo2009-cpu/RiotAccountHub/releases/latest) 下載：
 
-要自己產生下載包：`powershell -ExecutionPolicy Bypass -File tools\make-package.ps1`（輸出在 `dist\`）。
+| 檔案 | 給誰 |
+|---|---|
+| `RiotAccountHub-v*.zip` | 第一次使用：解壓縮後照著裡面的 `安裝說明.txt` 做 |
+| `RiotAccountHub-update-v*.zip` | 已經在用 v1.0.3 以前的舊版：先打開舊版，再打開更新包裡的程式，按「更新」 |
+
+v1.0.4 以後的版本會自己檢查更新：程式上方出現「有新版本」時按「立即更新」，就會下載、換成新版並重新開啟。
+
+### 發布新版（給開發者）
+
+1. 改 `src/RiotAccountHub/RiotAccountHub.csproj` 的 `<Version>`
+2. 在 `CHANGELOG.md` 最上面寫好 `## [版本] - 日期` 和更新內容，commit
+3. `powershell -ExecutionPolicy Bypass -File tools\publish-release.ps1`
+
+它會跑測試、產生完整下載包 + 更新包 + `update.json`、推送並建立 GitHub Release，最後確認 GitHub 上的檔案跟本機一樣。個人作品集網頁會自動從 GitHub 抓到新版。只想在本機產生檔案：`tools\make-package.ps1`（輸出在 `dist\`）。
 
 ## 運作原理
 
@@ -46,6 +59,7 @@ Windows 上的 Valorant / Riot 帳號切換器。每個帳號登入一次並存�
 | `127.0.0.1`（你自己電腦上的 Riot Client） | 切換、抓 Riot ID / 段位、自動開始遊戲 | 不會離開你的電腦 |
 | `media.valorant-api.com`（玩家社群網站） | 第一次看到某張卡面時下載圖片 | 只有卡面編號 |
 | `player-preferences-usw2.pp.sgp.pvp.net`（Riot 官方） | 玩遊戲時自動記錄設定、使用「複製 / 套用 / 還原設定」時 | 你自己帳號的 token（只在記憶體中，不存檔）與遊戲設定 |
+| `github.com`（這個專案的 Releases） | 開啟後與每 6 小時檢查一次有沒有新版本、按「立即更新」時下載更新包 | 一般的下載請求，不含任何帳號資料 |
 
 ## 其他功能
 
