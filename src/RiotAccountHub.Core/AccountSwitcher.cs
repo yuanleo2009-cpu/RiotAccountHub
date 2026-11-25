@@ -325,8 +325,19 @@ public sealed class AccountSwitcher
             AppLog.Info("這次登入沒有勾保持登入：已清空並重新開啟登入畫面");
         });
 
-    /// <summary>登入流程第 2 步：問 Riot Client 目前有沒有登入、有沒有勾保持登入</summary>
-    public Task<ApiLoginStatus> CheckLoginAsync() => _api.GetLoginStatusAsync();
+    /// <summary>
+    /// 登入流程第 2 步：問 Riot Client 目前有沒有登入。
+    /// 主要看 /rso-auth/v1/authorization（實測最可靠）；它還沒好的話，再看 session 的 type。
+    /// </summary>
+    public async Task<ApiLoginStatus> CheckLoginAsync()
+    {
+        var status = await _api.GetLoginStatusAsync();
+        if (status.State != ApiLoginState.LoggedIn && await _api.IsLoggedInAsync())
+        {
+            return ApiLoginStatus.LoggedIn(status.PersistLogin);
+        }
+        return status;
+    }
 
     /// <summary>
     /// 自動抓目前登入帳號的 Riot ID。

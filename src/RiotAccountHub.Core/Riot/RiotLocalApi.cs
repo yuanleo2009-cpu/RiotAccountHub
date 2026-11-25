@@ -97,6 +97,9 @@ public sealed class RiotLocalApi
     /// （Riot 定義的 type：needs_credentials、needs_password、needs_multifactor_verification、
     ///   authenticated、error、unknown_authentication_response）
     /// 沒有 type 欄位（例如 Riot 改了格式）時，維持舊的判斷：當成已登入。
+    ///
+    /// persistLogin 只是照抄，不要拿來判斷有沒有勾「保持登入」：實測（2026-11-25）用 Google 登入、
+    /// 而且確實靠保持登入自動登入的帳號，它照樣回報 false。要判斷請看存下來的登入檔案（RiotLoginFiles）。
     /// </summary>
     internal static ApiLoginStatus ParseLoginStatus(string json)
     {

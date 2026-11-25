@@ -787,73 +787,69 @@ public sealed partial class MainViewModel : ObservableObject
 
         // ---- 步驟 2：等使用者登入 ----
         var headline = existing is null ? "請在 Riot Client 登入要新增的帳號" : $"請在 Riot Client 登入「{existing.RiotId}」";
-        ApiLoginStatus status;
         RiotIdInfo? detected;
-        while (true)
+        CapturedLogin captured;
+        while (true) // 這一圈：登入 → 存下登入檔案；沒勾「保持登入」而使用者選擇重來時，回到這裡
         {
-            if (!_dialogs.ShowLoginPrompt(headline))
+            while (true)
             {
-                await CancelLoginAsync(pending);
-                return;
-            }
-
-            status = await _switcher.CheckLoginAsync();
-            if (status.State == ApiLoginState.NotLoggedIn)
-            {
-                _dialogs.ShowInfo("還沒有偵測到登入", "Riot Client 目前顯示還沒有登入。\n請先在 Riot Client 完成登入，看到主畫面後再按「我登入好了」。");
-                continue;
-            }
-            if (status.PersistLogin == false)
-            {
-                // 沒勾「保持登入」：存下來也沒辦法自動登入。程式沒辦法替使用者勾（Riot 的登入頁面不開放給外部程式操作），
-                // 所以改成登入後馬上檢查，沒勾就自動回到登入畫面讓使用者重來一次
-                var redo = _dialogs.Confirm(
-                    "這次登入沒有勾「保持登入」",
-                    "Riot Client 回報這次登入沒有勾選「保持登入」（Stay signed in），這樣存下來的登入之後沒辦法自動登入。\n\n" +
-                    "按「重新登入一次」，程式會幫你把 Riot Client 回到登入畫面。這次請先勾「保持登入」，再登入。",
-                    "重新登入一次", "仍然儲存", warning: true);
-                if (redo)
+                if (!_dialogs.ShowLoginPrompt(headline))
                 {
-                    var again = BeginBusy("回到登入畫面", SwitchStep.Closing, SwitchStep.Clearing, SwitchStep.Launching);
-                    await _switcher.RestartLoginAsync(clientPath, again);
-                    EndBusy();
+                    await CancelLoginAsync(pending);
+                    return;
+                }
+
+                var status = await _switcher.CheckLoginAsync();
+                if (status.State == ApiLoginState.NotLoggedIn)
+                {
+                    _dialogs.ShowInfo("還沒有偵測到登入", "Riot Client 目前顯示還沒有登入。\n請先在 Riot Client 完成登入，看到主畫面後再按「我登入好了」。");
                     continue;
                 }
+                // 注意：這裡不看 Riot Client 回報的 persistLogin。實測（2026-11-25）就算有勾「保持登入」、
+                // 甚至是靠保持登入自動登入的，它照樣回報 false，用它判斷會每次都誤報。改成存檔後直接看登入檔案。
+
+                // 自動抓 Riot ID（抓不到也沒關係，之後讓使用者手動輸入）
+                BeginBusy("正在讀取帳號的 Riot ID…");
+                detected = await _switcher.DetectRiotIdAsync();
+                EndBusy();
+
+                // 重新登入時，確認登入的是不是這張卡片的帳號
+                if (existing is not null && detected is not null && !IsSameAccount(existing.Model, detected) &&
+                    !_dialogs.Confirm(
+                        "登入的帳號不一樣",
+                        $"你在 Riot Client 登入的是「{detected.RiotId}」，\n但這張卡片是「{existing.RiotId}」。\n\n" +
+                        $"如果繼續，這張卡片會改成「{detected.RiotId}」。",
+                        "改存成這個帳號", "我去換帳號登入", warning: true))
+                {
+                    continue;
+                }
+                break;
             }
 
-            // 自動抓 Riot ID（抓不到也沒關係，之後讓使用者手動輸入）
-            BeginBusy("正在讀取帳號的 Riot ID…");
-            detected = await _switcher.DetectRiotIdAsync();
+            // ---- 步驟 3：擷取登入狀態 ----
+            progress = BeginBusy("儲存登入狀態", SwitchStep.Closing, SwitchStep.Saving);
+            captured = await _switcher.FinishLoginAsync(progress);
             EndBusy();
 
-            // 重新登入時，確認登入的是不是這張卡片的帳號
-            if (existing is not null && detected is not null && !IsSameAccount(existing.Model, detected) &&
-                !_dialogs.Confirm(
-                    "登入的帳號不一樣",
-                    $"你在 Riot Client 登入的是「{detected.RiotId}」，\n但這張卡片是「{existing.RiotId}」。\n\n" +
-                    $"如果繼續，這張卡片會改成「{detected.RiotId}」。",
-                    "改存成這個帳號", "我去換帳號登入", warning: true))
+            // 看存下來的登入檔案本身有沒有「保持登入」的資料（這是唯一可靠的判斷）
+            if (captured.Persist == PersistState.Unknown)
             {
-                continue;
+                AppLog.Info("無法判斷登入檔案裡有沒有保持登入（Riot Client 可能改了格式），照樣儲存");
             }
-            break;
-        }
+            if (captured.Persist != PersistState.NotPersisted) break;
 
-        // ---- 步驟 3：擷取登入狀態 ----
-        progress = BeginBusy("儲存登入狀態", SwitchStep.Closing, SwitchStep.Saving);
-        var captured = await _switcher.FinishLoginAsync(progress);
-        EndBusy();
+            // 沒勾「保持登入」：存下來也沒辦法自動登入。程式沒辦法替使用者勾（Riot 的登入頁面不開放給外部程式操作），
+            // 所以讓使用者選擇：程式幫忙回到登入畫面重來一次，或是照樣儲存
+            var redo = _dialogs.Confirm(
+                "這次登入沒有勾「保持登入」",
+                "存下來的登入檔案裡沒有「保持登入」的資料，之後切換到這個帳號時沒辦法自動登入。\n\n" +
+                "按「重新登入一次」，程式會幫你把 Riot Client 回到登入畫面。這次請先勾「保持登入」（Stay signed in），再登入。",
+                "重新登入一次", "仍然儲存", warning: true);
+            if (!redo) break;
 
-        if (captured.Persist != PersistState.Persisted && status.PersistLogin != true)
-        {
-            var detail = captured.Persist == PersistState.NotPersisted
-                ? "登入檔案裡找不到「保持登入」的資料。這個快照之後很可能需要重新登入。"
-                : "無法確認登入檔案裡有沒有「保持登入」的資料（可能是 Riot Client 更新了格式）。";
-            if (!_dialogs.Confirm("保持登入檢查", detail + "\n\n要儲存這個快照嗎？", "仍然儲存", "放棄", warning: true))
-            {
-                await CancelLoginAsync(pending);
-                return;
-            }
+            var again = BeginBusy("回到登入畫面", SwitchStep.Closing, SwitchStep.Clearing, SwitchStep.Launching);
+            await _switcher.RestartLoginAsync(clientPath, again);
+            EndBusy();
         }
 
         // ---- 步驟 4：存檔 ----
