@@ -399,6 +399,10 @@ public sealed class RiotLocalApi
         var lockfile = ReadLockfile();
         if (lockfile is null) return (null, null);
 
+        // Riot Client 被關掉時，lockfile 會留在原地。這時候去連線，Windows 要等大約 2 秒才會說連不上；
+        // 先看寫 lockfile 的那個程式（RiotClientServices）還在不在，不在就直接當作連不上。
+        if (!IsLockfileOwnerRunning(lockfile.Pid)) return (null, null);
+
         var url = $"{lockfile.Protocol}://127.0.0.1:{lockfile.Port}{path}";
         using var req = new HttpRequestMessage(method, url);
         req.Headers.Authorization = new AuthenticationHeaderValue(
@@ -417,9 +421,40 @@ public sealed class RiotLocalApi
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            AppLog.Info($"本機 API 連線失敗：{path}({ex.GetType().Name})");
+            LogConnectionFailure(path, ex);
             return (null, null);
         }
+    }
+
+    /// <summary>寫 lockfile 的程式（RiotClientServices）還在不在執行</summary>
+    private static bool IsLockfileOwnerRunning(int pid)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            // 編號可能被別的程式重複使用：名字不像 Riot Client 的就不算
+            return process.ProcessName.StartsWith("RiotClient", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return false; // 已經不在了
+        }
+        catch (InvalidOperationException)
+        {
+            return false; // 剛好在查的時候結束了
+        }
+    }
+
+    // 連線失敗的記錄：同一個網址 30 秒內只記一次，不然 Riot Client 在啟動時記錄檔會被同一行洗版
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> LastFailureLog = new();
+    private static readonly TimeSpan FailureLogInterval = TimeSpan.FromSeconds(30);
+
+    private static void LogConnectionFailure(string path, Exception ex)
+    {
+        var now = DateTime.UtcNow;
+        if (LastFailureLog.TryGetValue(path, out var last) && now - last < FailureLogInterval) return;
+        LastFailureLog[path] = now;
+        AppLog.Info($"本機 API 連線失敗：{path}({ex.GetType().Name})");
     }
 }
 

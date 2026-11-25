@@ -54,6 +54,13 @@ public sealed class Account
     /// <summary>快照最後更新的時間(UTC)</summary>
     public DateTime? SnapshotUpdatedUtc { get; set; }
 
+    /// <summary>
+    /// 這個帳號存起來的登入已經失效（例如在 Riot Client 或遊戲裡按過「登出」），要重新登入才能用。
+    /// 記下來之後，下次按「啟動」就能馬上提醒，不用再開一次 Riot Client 才發現。
+    /// 重新登入（存了新的快照）或確認自動登入成功時會清掉。
+    /// </summary>
+    public bool NeedsRelogin { get; set; }
+
     /// <summary>完整的 Riot ID，例如 Player#TW1</summary>
     [JsonIgnore]
     public string RiotId => string.IsNullOrWhiteSpace(TagLine) ? GameName : $"{GameName}#{TagLine}";

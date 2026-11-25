@@ -84,6 +84,17 @@ public sealed class AccountSwitcher
     public bool IsValorantRunning() => _riot.IsValorantRunning();
 
     /// <summary>
+    /// Riot Client 現在是不是開著、而且停在登入畫面（沒有登入任何帳號）。只問本機的 Riot Client。
+    /// 用來發現「使用者剛剛在 Riot Client 或遊戲裡按了登出」。
+    /// </summary>
+    public Task<bool> IsAtSignInPageAsync() => Task.Run(async () =>
+    {
+        if (!_riot.IsAnyRiotProcessRunning()) return false;
+        var signal = await _api.GetAutoLoginSignalAsync();
+        return signal is AutoLoginSignal.LoginRequired or AutoLoginSignal.AtLoginPage;
+    });
+
+    /// <summary>
     /// 只關閉 VALORANT 遊戲（使用者在「遊戲中」的卡片上按了按鈕，並且確認過）。
     /// Riot Client 保持開著、帳號保持登入；Vanguard 不會被碰。放在背景執行緒做，不卡畫面。
     /// </summary>
@@ -213,18 +224,6 @@ public sealed class AccountSwitcher
             _riot.StartClient(clientPath);
             AppLog.Info("已切換帳號並開啟 Riot Client（先不開遊戲）：" + accountId);
         });
-
-    /// <summary>等 Riot Client 登入完成；逾時回傳 false（通常代表登入狀態過期）</summary>
-    public async Task<bool> WaitForLoginAsync(TimeSpan timeout)
-    {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (sw.Elapsed < timeout)
-        {
-            if (await _api.IsLoggedInAsync()) return true;
-            await Task.Delay(1000);
-        }
-        return false;
-    }
 
     // Riot Client 的登入流程走到「等使用者登入」：連續看到兩次（相隔半秒）就判定，不用多等。
     // 正常自動登入時完全不會出現這個狀態，所以可以這麼快。

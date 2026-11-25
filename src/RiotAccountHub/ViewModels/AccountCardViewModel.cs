@@ -51,7 +51,16 @@ public sealed partial class AccountCardViewModel : ObservableObject
 
     /// <summary>這個帳號有沒有登入快照（沒有的話卡片會提示要重新登入）</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLoginWarning), nameof(LoginWarningText))]
     private bool _hasSnapshot;
+
+    /// <summary>卡片上要不要顯示黃色的「請按重新登入」提示</summary>
+    public bool ShowLoginWarning => !HasSnapshot || Model.NeedsRelogin;
+
+    /// <summary>黃色提示的文字：沒有快照，或是存起來的登入已經失效</summary>
+    public string LoginWarningText => !HasSnapshot
+        ? "沒有登入狀態，請按「重新登入」"
+        : "登入已失效，請按「重新登入」";
 
     public string GameName => Model.GameName;
 

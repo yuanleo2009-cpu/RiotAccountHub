@@ -55,6 +55,9 @@ public sealed partial class MainViewModel : ObservableObject
     // 切換帳號後，在背景確認「Riot Client 有沒有自動登入」的那個等待（同一時間只留一個）
     private CancellationTokenSource? _loginWatchCts;
 
+    // 發現使用者在 Riot Client 或遊戲裡按了登出（登出會讓那個帳號存起來的登入失效）
+    private readonly SignOutDetector _signOuts = new();
+
     public MainViewModel(
         AppPaths paths,
         AccountSwitcher switcher,
@@ -488,6 +491,12 @@ public sealed partial class MainViewModel : ObservableObject
         CancelAutoStartGame(); // 這個流程自己會決定什麼時候開遊戲
 
         var loggedIn = await _switcher.IsCurrentlyLoggedInAsync(card.Model);
+        if (card.Model.NeedsRelogin && !loggedIn)
+        {
+            // 已經知道存起來的登入失效了：不用開 Riot Client 等它失敗
+            if (AskToRelogin(card, justDetected: false)) await RunLoginFlowAsync(existing: card, skipIntro: true);
+            return null;
+        }
         var steps = new List<SwitchStep>();
         if (!loggedIn) steps.AddRange(new[] { SwitchStep.Closing, SwitchStep.Switching, SwitchStep.LoggingIn });
         steps.Add(actionStep);
@@ -498,7 +507,9 @@ public sealed partial class MainViewModel : ObservableObject
         {
             await _switcher.SwitchAndStartClientAsync(card.Model.Id, clientPath, progress);
             progress.Report(SwitchStep.LoggingIn);
-            if (!await _switcher.WaitForLoginAsync(TimeSpan.FromSeconds(60)))
+            var login = await _switcher.WatchAutoLoginAsync(TimeSpan.FromSeconds(60));
+            if (login == AutoLoginResult.NeedsLogin) SetNeedsRelogin(card, true);
+            if (login != AutoLoginResult.LoggedIn)
             {
                 throw new UserFacingException("沒有自動登入",
                     $"Riot Client 打開了，但「{card.RiotId}」沒有自動登入（登入狀態可能過期了）。\n\n" +
@@ -584,8 +595,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (await _switcher.IsCurrentlyLoggedInAsync(card.Model))
         {
-            await RunOnAccountAsync(card, $"複製 {card.RiotId} 的設定", SwitchStep.ReadingSettings, startGame: false,
-                current => _settingsSync.CaptureAccountAsync(card.Model.Id, current.Puuid!));
+            // 中途停下來（例如這個帳號要先重新登入）就不要標成「已複製」
+            if (await RunOnAccountAsync(card, $"複製 {card.RiotId} 的設定", SwitchStep.ReadingSettings, startGame: false,
+                    current => _settingsSync.CaptureAccountAsync(card.Model.Id, current.Puuid!)) is null) return;
         }
         else if (await ProfileOfAsync(card) is null)
         {
@@ -595,8 +607,9 @@ public sealed partial class MainViewModel : ObservableObject
                 "也可以按「取消」，之後用這個帳號玩一次，程式會自動記下。",
                 "切換並讀取", "取消");
             if (!ok) return;
-            await RunOnAccountAsync(card, $"複製 {card.RiotId} 的設定", SwitchStep.ReadingSettings, startGame: false,
-                current => _settingsSync.CaptureAccountAsync(card.Model.Id, current.Puuid!));
+            // 中途停下來（例如這個帳號要先重新登入）就不要標成「已複製」
+            if (await RunOnAccountAsync(card, $"複製 {card.RiotId} 的設定", SwitchStep.ReadingSettings, startGame: false,
+                    current => _settingsSync.CaptureAccountAsync(card.Model.Id, current.Puuid!)) is null) return;
         }
 
         _settings.CopiedSettingsAccountId = card.Model.Id;
@@ -699,8 +712,18 @@ public sealed partial class MainViewModel : ObservableObject
         var clientPath = EnsureClientPath();
         if (clientPath is null) return;
 
+        var alreadyLoggedIn = await _switcher.IsCurrentlyLoggedInAsync(card.Model);
+
+        // 已經知道這個帳號存起來的登入失效了（之前發現過登出）：不用開 Riot Client，馬上提醒
+        // （Riot Client 現在剛好登入著這個帳號的話，直接開遊戲就好，不需要用到存起來的登入）
+        if (card.Model.NeedsRelogin && !alreadyLoggedIn)
+        {
+            if (AskToRelogin(card, justDetected: false)) await RunLoginFlowAsync(existing: card, skipIntro: true);
+            return;
+        }
+
         // 快速路徑：Riot Client 已經登入這個帳號 → 不用關閉重開，直接開遊戲
-        if (await _switcher.IsCurrentlyLoggedInAsync(card.Model))
+        if (alreadyLoggedIn)
         {
             var quick = BeginBusy($"啟動 {card.RiotId}", SwitchStep.Launching);
             var result = await _switcher.LaunchWithoutSwitchAsync(clientPath, quick);
@@ -852,6 +875,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _switcher.SaveSnapshot(existing.Model.Id, captured);
             existing.Model.SnapshotUpdatedUtc = DateTime.UtcNow;
+            existing.Model.NeedsRelogin = false; // 剛存了新的登入，失效的那份已經換掉了
             if (detected is not null)
             {
                 // 順便更新名稱（例如在 Riot 改過 Riot ID）
@@ -1183,7 +1207,15 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var result = await Task.Run(() => _switcher.WatchAutoLoginAsync(TimeSpan.FromSeconds(90), ct), ct);
+            if (result == AutoLoginResult.LoggedIn) SetNeedsRelogin(card, false); // 存起來的登入確定能用
             if (result != AutoLoginResult.NeedsLogin) return;
+
+            // 記下來：下次按這個帳號的「啟動」就能馬上提醒，不用再開一次 Riot Client
+            SetNeedsRelogin(card, true);
+
+            // 這次不會自動登入了，「自動開始遊戲」不用再等（不然使用者之後在 Riot 視窗登入別的帳號時，遊戲會突然被打開）
+            _autoStartCts?.Cancel();
+            _autoStartCts = null;
 
             // 等目前正在進行的流程（例如「已啟動」的完成畫面）結束，再跳出提醒
             while (_flowRunning || IsBusy) await Task.Delay(300, ct);
@@ -1193,13 +1225,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (_pendingLaunch?.AccountId == card.Model.Id) _pendingLaunch = null;
             card.Activity = AccountActivity.None;
 
-            // 這時候畫面上通常是 Riot Client 的登入視窗，所以要把提醒叫到最前面，使用者才看得到
-            var relogin = _dialogs.Confirm("現在不能啟動這個帳號",
-                $"Riot Client 是登出的狀態：「{card.RiotId}」存起來的登入已經失效，沒辦法自動登入。\n" +
-                "（最常見的原因：在 Riot Client 或遊戲裡按過「登出」。以後想關遊戲或換帳號，用這個程式就好。）\n\n" +
-                "需要重新登入一次。按「重新登入」，程式會幫你打開登入畫面；登入前請先勾「保持登入」（Stay signed in）。",
-                "重新登入", "稍後再說", warning: true, bringToFront: true);
-            if (relogin) await RunGuardedAsync(() => RunLoginFlowAsync(existing: card, skipIntro: true));
+            if (AskToRelogin(card, justDetected: true)) await RunGuardedAsync(() => RunLoginFlowAsync(existing: card, skipIntro: true));
         }
         catch (OperationCanceledException)
         {
@@ -1209,6 +1235,33 @@ public sealed partial class MainViewModel : ObservableObject
         {
             AppLog.Error("確認自動登入時發生錯誤", ex); // 只是附加的提醒，失敗不打擾使用者
         }
+    }
+
+    /// <summary>
+    /// 問使用者要不要重新登入這個帳號（它存起來的登入已經失效）。
+    /// justDetected：剛剛切換時才發現（畫面上通常是 Riot 的登入視窗，所以提醒要叫到最前面）；
+    /// false 表示之前就知道了，這次沒有開 Riot Client。
+    /// </summary>
+    private bool AskToRelogin(AccountCardViewModel card, bool justDetected)
+    {
+        var what = justDetected
+            ? $"Riot Client 是登出的狀態：「{card.RiotId}」存起來的登入已經失效，沒辦法自動登入。\n"
+            : $"「{card.RiotId}」存起來的登入已經失效（之前偵測到這個帳號被登出了），沒辦法自動登入。\n";
+        return _dialogs.Confirm("現在不能啟動這個帳號",
+            what +
+            "（最常見的原因：在 Riot Client 或遊戲裡按過「登出」。以後想關遊戲或換帳號，用這個程式就好。）\n\n" +
+            "需要重新登入一次。按「重新登入」，程式會幫你打開登入畫面；登入前請先勾「保持登入」（Stay signed in）。",
+            "重新登入", "稍後再說", warning: true, bringToFront: justDetected);
+    }
+
+    /// <summary>記下 / 清掉「這個帳號存起來的登入已經失效」，並更新卡片上的提示</summary>
+    private void SetNeedsRelogin(AccountCardViewModel card, bool value)
+    {
+        if (card.Model.NeedsRelogin == value) return;
+        card.Model.NeedsRelogin = value;
+        AppLog.Info(value ? "記下：這個帳號存起來的登入已經失效，需要重新登入" : "這個帳號的登入狀態恢復正常");
+        if (Accounts.Contains(card)) SaveAccounts();
+        card.Refresh();
     }
 
     /// <summary>記錄「上次使用時間」並存檔</summary>
@@ -1245,6 +1298,8 @@ public sealed partial class MainViewModel : ObservableObject
                 _pendingLaunch = null; // 等太久了（例如使用者把 Riot Client 關掉），不再顯示啟動中
             }
 
+            await WatchForSignOutAsync(active);
+
             foreach (var card in Accounts)
             {
                 var isCurrent = active is not null && IsSameAccount(card.Model, active.Who);
@@ -1273,6 +1328,34 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 發現「使用者在 Riot Client 或遊戲裡按了登出」：剛剛還登入著某個帳號，現在 Riot Client 卻停在登入畫面。
+    /// 登出會讓那個帳號存起來的登入失效，所以記下來，下次按「啟動」時馬上提醒。
+    /// 程式自己在跑流程（切換、新增帳號…）的時候不判斷，避免把程式自己造成的登入畫面算進去。
+    /// </summary>
+    private async Task WatchForSignOutAsync(ActiveAccount? active)
+    {
+        if (_flowRunning) return;
+        var now = DateTime.UtcNow;
+
+        if (active is not null)
+        {
+            _signOuts.SawSignedIn(Accounts.FirstOrDefault(a => IsSameAccount(a.Model, active.Who))?.Model.Id, now);
+            return;
+        }
+        if (!_signOuts.IsWatching(now)) return;
+
+        var atSignInPage = await _switcher.IsAtSignInPageAsync();
+        if (_flowRunning || IsBusy) return; // 等待期間開始了別的流程，這次的結果不要用
+
+        var signedOutId = _signOuts.SawNotSignedIn(atSignInPage, now);
+        if (Accounts.FirstOrDefault(a => a.Model.Id == signedOutId) is { } card)
+        {
+            AppLog.Info("偵測到 Riot Client 被登出了（剛剛還登入著某個帳號，現在停在登入畫面）");
+            SetNeedsRelogin(card, true);
+        }
+    }
+
     private void SaveAccounts() => _accountRepo.Save(Accounts.Select(a => a.Model));
 
     /// <summary>
@@ -1287,6 +1370,7 @@ public sealed partial class MainViewModel : ObservableObject
         // 避免兩個流程同時進行、互相打亂進度畫面
         if (_flowRunning) return;
         _flowRunning = true;
+        _signOuts.Reset(); // 程式自己的流程會關閉 / 重開 Riot Client，之前看到的登入不能拿來判斷登出
         try
         {
             await action();
@@ -1308,6 +1392,7 @@ public sealed partial class MainViewModel : ObservableObject
         finally
         {
             _flowRunning = false;
+            _signOuts.Reset();
             EndBusy();
             RefreshStatus();
         }

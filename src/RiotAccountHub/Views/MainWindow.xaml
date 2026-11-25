@@ -239,13 +239,13 @@
                                                             <TextBlock Text="{Binding AppliedSettingsText}" Style="{StaticResource Chip.Text}" />
                                                         </StackPanel>
                                                     </Border>
-                                                    <!-- 警告：沒有登入狀態 -->
+                                                    <!-- 警告：沒有登入狀態，或存起來的登入已經失效 -->
                                                     <Border>
                                                         <Border.Style>
                                                             <Style TargetType="Border" BasedOn="{StaticResource Chip.Warning}">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding HasSnapshot}" Value="False">
+                                                                    <DataTrigger Binding="{Binding ShowLoginWarning}" Value="True">
                                                                         <Setter Property="Visibility" Value="Visible" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
@@ -254,7 +254,7 @@
                                                         <StackPanel Orientation="Horizontal">
                                                             <ui:SymbolIcon Symbol="Warning16" FontSize="{StaticResource Size.IconSmall}"
                                                                            Foreground="{StaticResource Brush.Warning}" Margin="{StaticResource Gap.Right4}" />
-                                                            <TextBlock Text="沒有登入狀態，請按「重新登入」" Style="{StaticResource Chip.Text}"
+                                                            <TextBlock Text="{Binding LoginWarningText}" Style="{StaticResource Chip.Text}"
                                                                        Foreground="{StaticResource Brush.Warning}" />
                                                         </StackPanel>
                                                     </Border>
