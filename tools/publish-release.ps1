@@ -20,6 +20,16 @@ Set-Location $root
 $repo = 'yuanleo2009-cpu/RiotAccountHub'
 $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 
+# 執行 git / gh / dotnet 這類外部指令。
+# Windows PowerShell 5.1 會把它們寫到「錯誤輸出」的一般訊息（例如 git push 的進度）當成錯誤而中斷，
+# 所以這裡暫時放寬，改用 $LASTEXITCODE 判斷有沒有成功。
+function Invoke-Native([scriptblock]$Command) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Command 2>&1 | ForEach-Object { "$_" } }
+    finally { $ErrorActionPreference = $previous }
+}
+
 [xml]$csproj = Get-Content (Join-Path $root 'src\RiotAccountHub\RiotAccountHub.csproj') -Encoding UTF8
 $version = ($csproj.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
 $tag = "v$version"
@@ -27,9 +37,9 @@ Write-Host "準備發布 $tag" -ForegroundColor Cyan
 
 # ---- 1. 檢查 ----
 # 只看專案裡的檔案；沒加進 git 的資料夾（例如別的工具暫存的東西）不影響打包，不擋發布
-if (git status --porcelain --untracked-files=no) { throw '還有沒 commit 的修改，請先 commit。' }
-if ((git rev-parse --abbrev-ref HEAD) -ne 'main') { throw '請在 main 分支發布。' }
-gh release view $tag --repo $repo 2>$null | Out-Null
+if (Invoke-Native { git status --porcelain --untracked-files=no }) { throw '還有沒 commit 的修改，請先 commit。' }
+if ((Invoke-Native { git rev-parse --abbrev-ref HEAD }) -ne 'main') { throw '請在 main 分支發布。' }
+$null = Invoke-Native { gh release view $tag --repo $repo }
 if ($LASTEXITCODE -eq 0) { throw "$tag 已經發布過了。要發新版請先改 RiotAccountHub.csproj 的 <Version>。" }
 if (-not (Select-String -Path (Join-Path $root 'CHANGELOG.md') -Pattern "^## \[$([regex]::Escape($version))\]" -Quiet)) {
     throw "CHANGELOG.md 裡沒有 [$version] 這一段，請先寫好這一版的更新內容。"
@@ -37,7 +47,7 @@ if (-not (Select-String -Path (Join-Path $root 'CHANGELOG.md') -Pattern "^## \[$
 
 # ---- 2. 測試 ----
 Write-Host '跑單元測試…' -ForegroundColor Cyan
-dotnet test --nologo -v quiet
+Invoke-Native { dotnet test --nologo -v quiet } | Select-Object -Last 1
 if ($LASTEXITCODE -ne 0) { throw '有測試沒通過，沒有發布。' }
 
 # ---- 3. 打包 ----
@@ -85,15 +95,15 @@ $notesFile = Join-Path $dist "release-notes-$tag.md"
 
 # ---- 5. 推送並發布 ----
 Write-Host '推送程式碼…' -ForegroundColor Cyan
-git push origin main
+Invoke-Native { git push origin main }
 if ($LASTEXITCODE -ne 0) { throw '推送失敗' }
 
 Write-Host '建立 GitHub Release…' -ForegroundColor Cyan
-gh release create $tag @assets --repo $repo --target main --title "Riot Account Hub $tag" --notes-file $notesFile
+Invoke-Native { gh release create $tag @assets --repo $repo --target main --title "Riot Account Hub $tag" --notes-file $notesFile }
 if ($LASTEXITCODE -ne 0) { throw '建立 Release 失敗' }
 
 # ---- 6. 確認 GitHub 上的檔案跟本機一樣 ----
-$remote = gh release view $tag --repo $repo --json assets | ConvertFrom-Json
+$remote = (Invoke-Native { gh release view $tag --repo $repo --json assets }) -join "`n" | ConvertFrom-Json
 $ok = $true
 foreach ($a in $assets) {
     $name = Split-Path $a -Leaf
