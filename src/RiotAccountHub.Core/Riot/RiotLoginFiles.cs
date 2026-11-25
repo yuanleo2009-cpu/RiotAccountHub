@@ -71,7 +71,13 @@ public static class RiotLoginFiles
     /// <summary>
     /// 從 YAML 文字判斷有沒有保持登入。
     ///
-    /// 實際檢查到的格式：
+    /// 新格式（2026-11 在使用者電腦上看到的，Riot Client 已經不寫 riot-login 區塊了）：
+    ///   有保持登入：     psl:
+    ///                      authorization:
+    ///                        riot-client:
+    ///                          refresh_token: "（一長串）"   ← 下次開啟就用它自動登入
+    ///
+    /// 舊格式：
     ///   沒勾保持登入：   riot-login:
     ///                     persist: null
     ///   有勾保持登入：   riot-login:
@@ -81,6 +87,12 @@ public static class RiotLoginFiles
     internal static PersistState ParsePersistState(string yaml)
     {
         var lines = yaml.Replace("\r", "").Split('\n');
+
+        // 新格式：psl 區塊裡有 refresh_token 就是有保持登入
+        if (TopLevelBlock(lines, "psl:").Any(l => HasValue(l, "refresh_token:")))
+        {
+            return PersistState.Persisted;
+        }
 
         var sectionIndex = Array.FindIndex(lines, l => l.TrimEnd() == "riot-login:");
         if (sectionIndex < 0)
@@ -116,6 +128,30 @@ public static class RiotLoginFiles
     }
 
     private static int Indent(string line) => line.Length - line.TrimStart().Length;
+
+    /// <summary>某個頂層區塊（例如 "psl:"）底下的所有行；沒有這個區塊就是空的</summary>
+    private static IEnumerable<string> TopLevelBlock(string[] lines, string header)
+    {
+        var start = Array.FindIndex(lines, l => l.TrimEnd() == header);
+        if (start < 0) yield break;
+
+        for (var i = start + 1; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (line.Trim().Length == 0) continue;
+            if (!char.IsWhiteSpace(line[0])) yield break; // 到下一個頂層區塊了
+            yield return line;
+        }
+    }
+
+    /// <summary>這一行是不是「欄位: 有內容的值」（null、空字串、{} 都不算有內容）</summary>
+    private static bool HasValue(string line, string key)
+    {
+        var trimmed = line.Trim();
+        if (!trimmed.StartsWith(key, StringComparison.Ordinal)) return false;
+        var value = trimmed[key.Length..].Trim();
+        return value is not ("" or "null" or "~" or "\"\"" or "''" or "{}");
+    }
 }
 
 /// <summary>保持登入的狀態</summary>

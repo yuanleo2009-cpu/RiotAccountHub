@@ -46,6 +46,45 @@ public sealed class RiotHelpersTests
     }
 
     [Fact]
+    public void 保持登入_新格式有_refresh_token_時算有勾()
+    {
+        // 2026-11 在使用者電腦上看到的格式（值都換成假的）：已經沒有 riot-login 區塊
+        const string yaml = """
+            psl:
+                authorization:
+                    riot-client:
+                        claims: []
+                        id_token: "FAKE"
+                        is_dpop_bound: false
+                        refresh_token: "FAKE-REFRESH"
+                        refresh_token_write_count: 3
+                        scopes:
+                        - "openid"
+            rso-authenticator:
+                tdid:
+                    persistent: true
+                    value: "FAKE"
+            """;
+        Assert.Equal(PersistState.Persisted, RiotLoginFiles.ParsePersistState(yaml));
+    }
+
+    [Theory]
+    [InlineData("psl:\n    authorization: {}\nrso-authenticator:\n    tdid: {}\n")]
+    [InlineData("psl:\n    authorization:\n        riot-client:\n            refresh_token: null\n")]
+    [InlineData("psl:\n    authorization:\n        riot-client:\n            refresh_token: \"\"\n")]
+    public void 保持登入_新格式沒有_refresh_token_時算沒勾(string yaml)
+    {
+        Assert.Equal(PersistState.NotPersisted, RiotLoginFiles.ParsePersistState(yaml));
+    }
+
+    [Fact]
+    public void 保持登入_refresh_token_不在_psl_區塊裡不算()
+    {
+        // 只認 psl 區塊裡的，別的地方出現同名欄位不算
+        Assert.Equal(PersistState.NotPersisted, RiotLoginFiles.ParsePersistState("other:\n    refresh_token: \"FAKE\"\n"));
+    }
+
+    [Fact]
     public void 保持登入_沒有_riot_login_區塊()
     {
         Assert.Equal(PersistState.NotPersisted, RiotLoginFiles.ParsePersistState("rso-authenticator:\n    tdid: {}\n"));
